@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+.venv
+
+# Streamlit
+.streamlit/secrets.toml
+.streamlit/config.toml
+
+# Database
+*.db
+*.sqlite3
+meet_mobile_dump.db
+natacion_full_backup.db
+# Allow specific DB in data/
+!data/natacion.db
+
+# OS
+.DS_Store
+
+# Data
+Reporte_CRNP_2025.csv
+meet_mobile_results.csv
+meet_mobile_swimmers.csv
