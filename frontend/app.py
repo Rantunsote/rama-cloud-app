@@ -1853,17 +1853,21 @@ def main():
     # Global CSS for Safari/Dark Mode Dropdowns
     st.markdown("""
         <style>
-            /* Force white text in selectbox items */
-            div[data-baseweb="select"] span {
+            /* Force text color in the closed dropdown box */
+            .stSelectbox div[data-baseweb="select"] div {
+                color: white !important;
+                -webkit-text-fill-color: white !important;
+            }
+            
+            /* Force text color in the dropdown menu items */
+            li[role="option"] div {
                 color: white !important;
             }
-            /* Helper for dropdown distinction */
-            ul[data-testid="stSelectboxVirtualDropdown"] {
+            
+            /* Ensure the dropdown menu background is dark */
+            ul[data-baseweb="menu"],
+            div[role="listbox"] {
                 background-color: #1e293b !important;
-            }
-            /* Selected option text */
-            li[role="option"] {
-                color: white !important;
             }
         </style>
     """, unsafe_allow_html=True)
