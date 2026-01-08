@@ -1850,37 +1850,40 @@ def main():
     # user = st.session_state.get("username", "Guest")
     # if user == "admin": ... (Removed)
     
-    # Global CSS for Safari/Dark Mode Dropdowns
+    # Global CSS for Safari/Dark Mode Dropdowns - NUCLEAR OPTION
     st.markdown("""
         <style>
-            /* 1. Closed Input Box Text */
-            .stSelectbox div[data-baseweb="select"] div {
-                color: white !important;
-                -webkit-text-fill-color: white !important;
+            /* 1. Force the Popover container (the white box) to be dark */
+            div[data-baseweb="popover"] > div {
+                background-color: #0f172a !important;
             }
-            
-            /* 2. Dropdown Menu Container (The Popover) */
-            div[data-baseweb="popover"] > div,
+
+            /* 2. Force the Menu List to be dark */
             ul[data-baseweb="menu"] {
-                background-color: #0f172a !important; /* Very dark slate */
-                border: 1px solid #334155 !important;
+                background-color: #0f172a !important;
             }
 
-            /* 3. Option Text (Normal State) */
-            ul[data-baseweb="menu"] li span,
-            ul[data-baseweb="menu"] li div {
-                color: #f8fafc !important; /* White-ish */
+            /* 3. Force ALL text inside the popover to be white */
+            div[data-baseweb="popover"] * {
+                color: #f8fafc !important;
             }
 
-            /* 4. Hover & Selected State */
-            ul[data-baseweb="menu"] li:hover,
-            ul[data-baseweb="menu"] li[aria-selected="true"] {
+            /* 4. Handle Hover & Selected State explicitly */
+            li[role="option"]:hover,
+            li[role="option"][aria-selected="true"] {
                 background-color: #334155 !important;
             }
             
-            /* 5. Force specific text elements inside options */
-            li[role="option"] div {
+            /* 5. Force background of iterables inside the option to match hover/normal */
+            li[role="option"]:hover *,
+            li[role="option"][aria-selected="true"] * {
+                background-color: #334155 !important;
+            }
+            
+            /* 6. Fix for the closed select box text specifically */
+            div[data-baseweb="select"] div {
                 color: white !important;
+                -webkit-text-fill-color: white !important; 
             }
         </style>
     """, unsafe_allow_html=True)
