@@ -93,12 +93,56 @@ def get_event_display_name(event_name):
         return event_name
     return EVENT_DB_TO_ES.get(event_name.strip(), event_name)
 
+def normalize_scraped_event_name(raw_name):
+    """
+    Normalizes 'Mujeres 9-10 400 Metro Libre' -> '400 Free'
+    """
+    if not isinstance(raw_name, str):
+        return raw_name
+        
+    name = raw_name.lower()
+    
+    # 1. Extract Distance
+    import re
+    # Match number at start of string or after space
+    dist_match = re.search(r'(\b|^)(25|50|100|200|400|800|1500)(\b|$)', name)
+    if not dist_match:
+        return raw_name
+    distance = dist_match.group(2)
+    
+    # 2. Extract Style
+    style = None
+    if "libre" in name or "free" in name:
+        style = "Free"
+    elif "espalda" in name or "back" in name:
+        style = "Back"
+    elif "pecho" in name or "breast" in name:
+        style = "Breast"
+    elif "mariposa" in name or "fly" in name:
+        style = "Fly"
+    elif "combinado" in name or "medley" in name or "ci" in name or "im" in name:
+        style = "IM"
+        
+    if not style:
+        return raw_name
+        
+    # 3. Construct DB Name
+    return f"{distance} {style}"
+
 def resolve_db_event_names(display_name):
     if not isinstance(display_name, str):
         return [display_name]
     if display_name in EVENT_ES_TO_DB_MULTI:
         return EVENT_ES_TO_DB_MULTI[display_name]
-    return [EVENT_ES_TO_DB.get(display_name, display_name)]
+        
+    # Try exact match first
+    mapped = EVENT_ES_TO_DB.get(display_name)
+    if mapped:
+        return [mapped]
+        
+    # Try fallback normalization
+    normalized = normalize_scraped_event_name(display_name)
+    return [normalized]
 
 def get_img_as_base64(file):
     with open(file, "rb") as f:
