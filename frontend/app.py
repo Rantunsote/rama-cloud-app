@@ -1967,7 +1967,7 @@ def main():
     db_timestamp = "Unknown"
     if os.path.exists(DB_PATH):
         ts = os.path.getmtime(DB_PATH)
-        db_timestamp = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M')
+        db_timestamp = datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M')
     
     st.sidebar.caption(f"DB Version: {db_timestamp}")
     st.sidebar.caption("v1.2 - Historical Sync")
