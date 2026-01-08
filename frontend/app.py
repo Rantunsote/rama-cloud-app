@@ -1962,6 +1962,16 @@ def main():
     else:
         render_team_view(swimmers)
 
+    # --- SIDEBAR FOOTER ---
+    st.sidebar.markdown("---")
+    db_timestamp = "Unknown"
+    if os.path.exists(DB_PATH):
+        ts = os.path.getmtime(DB_PATH)
+        db_timestamp = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M')
+    
+    st.sidebar.caption(f"DB Version: {db_timestamp}")
+    st.sidebar.caption("v1.2 - Historical Sync")
+
 if __name__ == "__main__":
     if check_password():
         main()
