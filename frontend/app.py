@@ -1850,6 +1850,24 @@ def main():
     # user = st.session_state.get("username", "Guest")
     # if user == "admin": ... (Removed)
     
+    # Global CSS for Safari/Dark Mode Dropdowns
+    st.markdown("""
+        <style>
+            /* Force white text in selectbox items */
+            div[data-baseweb="select"] span {
+                color: white !important;
+            }
+            /* Helper for dropdown distinction */
+            ul[data-testid="stSelectboxVirtualDropdown"] {
+                background-color: #1e293b !important;
+            }
+            /* Selected option text */
+            li[role="option"] {
+                color: white !important;
+            }
+        </style>
+    """, unsafe_allow_html=True)
+    
     swimmers = load_swimmers()
     if swimmers.empty:
         st.error("No se encontraron nadadores en la base de datos.")
