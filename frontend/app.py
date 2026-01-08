@@ -1853,21 +1853,34 @@ def main():
     # Global CSS for Safari/Dark Mode Dropdowns
     st.markdown("""
         <style>
-            /* Force text color in the closed dropdown box */
+            /* 1. Closed Input Box Text */
             .stSelectbox div[data-baseweb="select"] div {
                 color: white !important;
                 -webkit-text-fill-color: white !important;
             }
             
-            /* Force text color in the dropdown menu items */
-            li[role="option"] div {
-                color: white !important;
+            /* 2. Dropdown Menu Container (The Popover) */
+            div[data-baseweb="popover"] > div,
+            ul[data-baseweb="menu"] {
+                background-color: #0f172a !important; /* Very dark slate */
+                border: 1px solid #334155 !important;
+            }
+
+            /* 3. Option Text (Normal State) */
+            ul[data-baseweb="menu"] li span,
+            ul[data-baseweb="menu"] li div {
+                color: #f8fafc !important; /* White-ish */
+            }
+
+            /* 4. Hover & Selected State */
+            ul[data-baseweb="menu"] li:hover,
+            ul[data-baseweb="menu"] li[aria-selected="true"] {
+                background-color: #334155 !important;
             }
             
-            /* Ensure the dropdown menu background is dark */
-            ul[data-baseweb="menu"],
-            div[role="listbox"] {
-                background-color: #1e293b !important;
+            /* 5. Force specific text elements inside options */
+            li[role="option"] div {
+                color: white !important;
             }
         </style>
     """, unsafe_allow_html=True)
