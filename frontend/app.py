@@ -1850,40 +1850,37 @@ def main():
     # user = st.session_state.get("username", "Guest")
     # if user == "admin": ... (Removed)
     
-    # Global CSS for Safari/Dark Mode Dropdowns - NUCLEAR OPTION
+    # Global CSS for Safari/Dark Mode Dropdowns - FINAL FIX
     st.markdown("""
         <style>
-            /* 1. Force the Popover container (the white box) to be dark */
-            div[data-baseweb="popover"] > div {
+            /* 1. Closed Input Box */
+            .stSelectbox div[data-baseweb="select"] div {
+                color: white !important;
+                -webkit-text-fill-color: white !important;
+            }
+
+            /* 2. The Main Dropdown List Container */
+            ul[data-testid="stSelectboxVirtualDropdown"] {
                 background-color: #0f172a !important;
             }
 
-            /* 2. Force the Menu List to be dark */
-            ul[data-baseweb="menu"] {
+            /* 3. Individual Options (Default State) */
+            li[role="option"] {
                 background-color: #0f172a !important;
+                color: white !important;
+            }
+            
+            /* 4. Text inside Options */
+            li[role="option"] div,
+            li[role="option"] span {
+                color: white !important;
+                -webkit-text-fill-color: white !important;
             }
 
-            /* 3. Force ALL text inside the popover to be white */
-            div[data-baseweb="popover"] * {
-                color: #f8fafc !important;
-            }
-
-            /* 4. Handle Hover & Selected State explicitly */
+            /* 5. Hover & Selected State */
             li[role="option"]:hover,
             li[role="option"][aria-selected="true"] {
                 background-color: #334155 !important;
-            }
-            
-            /* 5. Force background of iterables inside the option to match hover/normal */
-            li[role="option"]:hover *,
-            li[role="option"][aria-selected="true"] * {
-                background-color: #334155 !important;
-            }
-            
-            /* 6. Fix for the closed select box text specifically */
-            div[data-baseweb="select"] div {
-                color: white !important;
-                -webkit-text-fill-color: white !important; 
             }
         </style>
     """, unsafe_allow_html=True)
