@@ -96,19 +96,34 @@ def get_event_display_name(event_name):
 def normalize_scraped_event_name(raw_name):
     """
     Normalizes 'Mujeres 9-10 400 Metro Libre' -> '400 Free'
+    Handles Relays to avoid false positives (e.g. '200 Relevo' != '200 Individual')
     """
     if not isinstance(raw_name, str):
         return raw_name
         
     name = raw_name.lower()
     
+    # Check for Relay
+    is_relay = "relevo" in name or "relay" in name
+    
     # 1. Extract Distance
     import re
     # Match number at start of string or after space
+    # Look for 4x50, 4x100 patterns for Relays
+    if is_relay:
+        # Simple logic: if it's a relay, we append "Relay" to style
+        # But we must capture the distance logic if possible, or usually Relays are 200 (4x50) or 400 (4x100) or 800 (4x200)
+        # For qualification purpose, if we return "200 Free Relay", it won't match "200 Free" standard.
+        pass
+    
     dist_match = re.search(r'(\b|^)(25|50|100|200|400|800|1500)(\b|$)', name)
     if not dist_match:
-        return raw_name
-    distance = dist_match.group(2)
+        # Maybe it's "4 x 50"
+        if "4 x 50" in name or "4x50" in name: distance = "200"
+        elif "4 x 100" in name or "4x100" in name: distance = "400"
+        else: return raw_name
+    else:
+        distance = dist_match.group(2)
     
     # 2. Extract Style
     style = None
@@ -121,13 +136,21 @@ def normalize_scraped_event_name(raw_name):
     elif "mariposa" in name or "fly" in name:
         style = "Fly"
     elif "combinado" in name or "medley" in name or "ci" in name or "im" in name:
+        # "CI" = Combinado Individual usually, but sometimes used in Relays "Combinado Relevo"
         style = "IM"
+        # If it's a relay, "IM Relay" is usually called "Medley Relay" in DB keys
+        if is_relay: style = "Medley"
         
     if not style:
         return raw_name
         
     # 3. Construct DB Name
-    return f"{distance} {style}"
+    final_name = f"{distance} {style}"
+    
+    if is_relay:
+        final_name += " Relay"
+        
+    return final_name
 
 def resolve_db_event_names(display_name):
     if not isinstance(display_name, str):
