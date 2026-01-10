@@ -307,21 +307,20 @@ def sync_data():
                 local_swimmers[s_name] = swimmer_id
                 local_swimmer_names.append(s_name)
             
-            # Check if result exists (avoid dupes)
+            # Check if result exists (avoid dupes based on TIME as well)
             # Use NORMALIZED event name
             norm_event = normalize_event_name_v2(row['EventName'])
             
-            check_sql = "SELECT id FROM results WHERE swimmer_id = ? AND meet_id = ? AND event_name = ?"
-            existing = local_cursor.execute(check_sql, (swimmer_id, new_meet_id, norm_event)).fetchone()
+            raw_time = row['Time']
+            if not raw_time: continue
+            raw_time = raw_time.replace(',', '.')
+            
+            check_sql = "SELECT id FROM results WHERE swimmer_id = ? AND meet_id = ? AND event_name = ? AND time = ?"
+            existing = local_cursor.execute(check_sql, (swimmer_id, new_meet_id, norm_event, raw_time)).fetchone()
             
             if existing:
                 result_id = existing[0]
             else:
-                # Replace comma with dot
-                raw_time = row['Time']
-                if not raw_time: continue
-                raw_time = raw_time.replace(',', '.')
-                
                 local_cursor.execute("""
                     INSERT INTO results (swimmer_id, meet_id, event_name, time, points, place, pool_size, time_url)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
