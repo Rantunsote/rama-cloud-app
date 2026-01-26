@@ -1731,7 +1731,9 @@ def render_profile_view(swimmer_id, swimmers_df):
                          if isinstance(swimmer_dob, str):
                             bd = pd.to_datetime(swimmer_dob)
                          else: bd = swimmer_dob
-                         current_age = datetime.now().year - bd.year
+                         today = datetime.now()
+                         # Proper age calculation: subtract 1 if birthday hasn't occurred yet this year
+                         current_age = today.year - bd.year - ((today.month, today.day) < (bd.month, bd.day))
                      except: pass
                  
                  # Helper to find closest category match
