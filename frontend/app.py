@@ -1851,6 +1851,7 @@ def render_profile_view(swimmer_id, swimmers_df):
                  st.markdown("##### Resultados Detallados")
                  st.dataframe(
                      subset[['date_str', 'meet_name', 'time', 'pool_size', 'place', 'points']]
+                     .sort_values(by='date_str', ascending=False)
                      .rename(columns={'date_str':'Fecha', 'meet_name':'Torneo', 'time':'Tiempo', 'pool_size':'Piscina', 'place':'Lugar', 'points':'Puntos'}),
                      use_container_width=True,
                      hide_index=True
