@@ -1476,8 +1476,37 @@ def render_team_view(swimmers_df):
         with t_ingreso:
             st.subheader("📝 Ingreso y Actualización de Datos")
             
-            t_dob, t_logs, t_other = st.tabs(["Actualizar Cumpleaños (Masivo)", "Registros de Acceso", "Otros"])
+            t_dob, t_fechida, t_logs, t_other = st.tabs(["Actualizar Cumpleaños (Masivo)", "Sincronizar Fechida", "Registros de Acceso", "Otros"])
             
+            with t_fechida:
+                st.markdown("### Sincronización Automática con Fechida")
+                st.info("Esta acción buscará nuevos resultados completos en la página de Fechida y actualizará la base de datos local para los nadadores de Peñalolén.")
+                if st.button("Sincronizar Resultados Oficiales", type="primary"):
+                    with st.spinner("Conectando con Fechida y procesando PDFs... Esto puede tomar unos minutos."):
+                        try:
+                            import sys
+                            import os
+                            parent_dir = os.path.dirname(os.path.abspath(DB_PATH)) if 'DB_PATH' in globals() else os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                            if parent_dir not in sys.path:
+                                sys.path.insert(0, parent_dir)
+                            
+                            class LogCapture:
+                                def __init__(self):
+                                    self.logs = []
+                                def __call__(self, msg):
+                                    self.logs.append(msg)
+                                    print(msg)
+                            
+                            import scraper_fechida_pdf
+                            logger = LogCapture()
+                            nuevos = scraper_fechida_pdf.scrape_fechida(log_callback=logger)
+                            
+                            st.success(f"¡Sincronización Completada! Se integraron {nuevos} resultados.")
+                            with st.expander("Ver bitácora de sincronización"):
+                                st.text('\\n'.join(logger.logs))
+                        except Exception as e:
+                            st.error(f"Error durante la sincronización: {e}")
+
             with t_dob:
                 st.markdown("""
                 ### Pegar datos de Excel/Google Sheets
