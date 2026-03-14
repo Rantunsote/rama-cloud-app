@@ -56,6 +56,14 @@ EVENT_DB_TO_ES = {
     "400 Medley Relay": "4 x 100 metros Combinado",
     "400 Mixed Free Relay": "4 x 100 metros Mixto (Libre o Combinado)",
     "400 Mixed Medley Relay": "4 x 100 metros Mixto (Libre o Combinado)",
+    "25 Free": "25 metros Libre",
+    "25 Back": "25 metros Espalda",
+    "25 Breast": "25 metros Pecho",
+    "25 Fly": "25 metros Mariposa",
+    "25 IM": "25 metros Combinado",
+    "100 Free Relay": "4 x 25 metros Libre",
+    "100 Medley Relay": "4 x 25 metros Combinado",
+    "4x50 Free Relay": "4 x 50 metros Libre",
 }
 
 EVENT_ES_TO_DB = {
@@ -83,16 +91,33 @@ EVENT_ES_TO_DB = {
     "4 x 50 metros Combinado": "200 Medley Relay",
     "4 x 100 metros Combinado": "400 Medley Relay",
     "4 x 100 metros Mixto (Libre o Combinado)": "400 Mixed Free Relay",
+    "25 metros Libre": "25 Free",
+    "25 metros Espalda": "25 Back",
+    "25 metros Pecho": "25 Breast",
+    "25 metros Mariposa": "25 Fly",
+    "25 metros Combinado": "25 IM",
+    "4 x 25 metros Libre": "100 Free Relay",
+    "4 x 25 metros Combinado": "100 Medley Relay",
 }
 
 EVENT_ES_TO_DB_MULTI = {
     "4 x 100 metros Mixto (Libre o Combinado)": ["400 Mixed Free Relay", "400 Mixed Medley Relay"],
+    "4 x 50 metros Libre": ["200 Free Relay", "4x50 Free Relay"],
 }
 
 def get_event_display_name(event_name):
     if not isinstance(event_name, str):
         return event_name
-    return EVENT_DB_TO_ES.get(event_name.strip(), event_name)
+    en = event_name.strip()
+    if en in EVENT_DB_TO_ES:
+        return EVENT_DB_TO_ES[en]
+        
+    # If not exactly matching, try normalizing it first (e.g. "Mujeres 9-10 400 Metro Libre" -> "400 Free")
+    norm = normalize_scraped_event_name(en)
+    if norm in EVENT_DB_TO_ES:
+        return EVENT_DB_TO_ES[norm]
+        
+    return norm
 
 def normalize_scraped_event_name(raw_name):
     """
