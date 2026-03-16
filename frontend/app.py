@@ -1509,9 +1509,9 @@ def render_team_view(swimmers_df):
                 if st.button("Sincronizar Resultados Oficiales", type="primary"):
                     with st.spinner("Conectando con Fechida y procesando PDFs... Esto puede tomar unos minutos."):
                         try:
-                            parent_dir = os.path.dirname(os.path.abspath(DB_PATH)) if 'DB_PATH' in globals() else os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-                            if parent_dir not in sys.path:
-                                sys.path.insert(0, parent_dir)
+                            root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                            if root_dir not in sys.path:
+                                sys.path.insert(0, root_dir)
                             
                             class LogCapture:
                                 def __init__(self):
