@@ -1269,7 +1269,7 @@ def render_team_view(swimmers_df):
     st.markdown("---")
     
     tab_list = ["🏠 Inicio", "🏊 Plantel", "🏆 Torneos", "📊 Análisis", "📈 Estadisticas", "🏅 Clasificados", "🏊 Relevos"]
-    is_admin = st.session_state.get("username") == "admin"
+    is_admin = st.session_state.get("logged_user") == "admin"
     if is_admin:
         tab_list.append("📝 Ingreso")
         
@@ -1924,6 +1924,7 @@ def check_password():
         if st.session_state["username"] in st.secrets["passwords"] and \
                 st.session_state["password"] == st.secrets["passwords"][st.session_state["username"]]:
             st.session_state["password_correct"] = True
+            st.session_state["logged_user"] = st.session_state["username"]
             log_access(st.session_state["username"]) # Log successful login
             # del st.session_state["password"]  # don't store password
         else:
