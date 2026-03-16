@@ -185,22 +185,45 @@ def sync_results_to_db(results, meet_name, meet_date):
         c.execute("INSERT INTO meets (id, name, date, pool_size) VALUES (?, ?, ?, ?)",
                   (meet_id, meet_name, meet_date, '50m')) # we'll update pool_size per result
     
-    # Load swimmers for matching
-    c.execute("SELECT id, name FROM swimmers")
+    # Load swimmers for matching (Now including birth_date)
+    c.execute("SELECT id, name, birth_date FROM swimmers")
     swimmers = c.fetchall()
     
     inserts = 0
     for r in results:
         formatted_name = format_fechida_name(r['raw_name'])
+        result_age_str = r.get('age', '')
+        
+        try:
+            result_age_val = int(result_age_str)
+        except ValueError:
+            result_age_val = None
         
         # Match swimmer
         best_match_id = None
         best_score = 0
-        for sid, sname in swimmers:
+        for sid, sname, sbirth in swimmers:
             score = similar(formatted_name.lower(), sname.lower())
-            if score > best_score:
-                best_score = score
-                best_match_id = sid
+            
+            # If name is a strong match, verify age parity to avoid matching adults with kids
+            if score > 0.75:
+                age_is_plausible = True
+                if result_age_val is not None and sbirth:
+                    try:
+                        # Calculate approximate age in DB
+                        birth_year = pd.to_datetime(sbirth).year
+                        current_year = datetime.now().year
+                        db_age = current_year - birth_year
+                        
+                        # Fechida "Master" category ages can be reported weirdly, but if the difference is huge (> 3 years), reject match
+                        if abs(db_age - result_age_val) > 3:
+                            age_is_plausible = False
+                    except:
+                        pass # if date parsing fails, give benefit of doubt
+                        
+                if age_is_plausible and score > best_score:
+                    best_score = score
+                    best_match_id = sid
                 
         if best_match_id and best_score > 0.75:
             db_event = map_event_name(r['raw_event'])
