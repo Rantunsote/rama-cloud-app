@@ -238,6 +238,7 @@ def scrape_fechida(log_callback=print):
     log_callback(f"Encontrados {len(links)} campeonatos. Verificando nuevos...")
     
     total_new = 0
+    added_meets = []
     
     for l in links:
         try:
@@ -282,6 +283,8 @@ def scrape_fechida(log_callback=print):
                     log_callback(f"  Encontrados {len(results)} resultados de Peñalolén. Guardando en DB...")
                     inserted = sync_results_to_db(results, meet_name, datetime.now().strftime("%Y-%m-%d"))
                     log_callback(f"  -> {inserted} registros actualizados/insertados.")
+                    if inserted > 0:
+                        added_meets.append(meet_name)
                     total_new += inserted
                 else:
                     log_callback("  No se encontraron resultados de Peñalolén en este torneo.")
@@ -296,7 +299,20 @@ def scrape_fechida(log_callback=print):
             log_callback(f"Error procesando {l}: {e}")
             
     log_callback(f"Proceso finalizado. {total_new} nuevos resultados integrados.")
-    return total_new
+    
+    # Get the last registered meet
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("SELECT name FROM meets ORDER BY date DESC LIMIT 1")
+    row = c.fetchone()
+    last_meet = row[0] if row else "Ninguna"
+    conn.close()
+    
+    return {
+        "total_new": total_new,
+        "added_meets": added_meets,
+        "last_meet": last_meet
+    }
 
 if __name__ == "__main__":
     scrape_fechida()

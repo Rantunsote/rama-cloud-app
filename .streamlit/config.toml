@@ -1,2 +1,3 @@
 [server]
-folderWatchBlacklist = ["data"]
+fileWatcherType = "none"
+folderWatchBlacklist = ["data", "**/data", "*/data"]

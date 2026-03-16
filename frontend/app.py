@@ -1522,9 +1522,19 @@ def render_team_view(swimmers_df):
                             
                             import scraper_fechida_pdf
                             logger = LogCapture()
-                            nuevos = scraper_fechida_pdf.scrape_fechida(log_callback=logger)
+                            resultado = scraper_fechida_pdf.scrape_fechida(log_callback=logger)
                             
-                            st.success(f"¡Sincronización Completada! Se integraron {nuevos} resultados.")
+                            nuevos = resultado.get("total_new", 0)
+                            added_meets = resultado.get("added_meets", [])
+                            last_meet = resultado.get("last_meet", "Ninguna")
+                            
+                            if nuevos > 0:
+                                st.success(f"¡Sincronización Completada! Se integraron {nuevos} resultados.")
+                                if added_meets:
+                                    st.write(f"Competencias agregadas: **{', '.join(added_meets)}**")
+                            else:
+                                st.info(f"No hay nuevas competencias. La última agregada fue: **{last_meet}**")
+                            
                             with st.expander("Ver bitácora de sincronización"):
                                 st.text('\\n'.join(logger.logs))
                         except Exception as e:
