@@ -600,6 +600,17 @@ def update_meet_pool_size(meet_id, new_size):
     finally:
         conn.close()
 
+def update_meet_info(meet_id, new_name, new_date):
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE meets SET name = ?, date = ? WHERE id = ?", (new_name, new_date, meet_id))
+        conn.commit()
+    except Exception as e:
+        st.error(f"Error updating meet info: {e}")
+    finally:
+        conn.close()
+
 
 
 MONTH_MAP_ES = {
@@ -1351,23 +1362,29 @@ def render_team_view(swimmers_df):
         edited_df = st.data_editor(
             editor_df,
             column_config=column_cfg,
-            disabled=["name", "date", "location", "address"], # Only pool_size editable
+            disabled=["location", "address"], # Allowed name, date, pool_size
             use_container_width=True,
             hide_index=True,
             key="meets_editor"
         )
         
         # Detect Changes
-        # This simple equality check works because source is sorted and index preserved
         if not edited_df.equals(editor_df):
             for i in editor_df.index:
-                old_val = editor_df.loc[i, 'pool_size']
-                new_val = edited_df.loc[i, 'pool_size']
-                m_id = editor_df.loc[i, 'id'] # ID is hidden but present
+                old_row = editor_df.loc[i]
+                new_row = edited_df.loc[i]
+                m_id = old_row['id'] # ID is hidden but present
                 
-                if old_val != new_val:
-                    update_meet_pool_size(m_id, new_val)
-                    st.toast(f"Piscina actualizada a {new_val}!", icon="✅")
+                changed = []
+                if old_row['pool_size'] != new_row['pool_size']:
+                    update_meet_pool_size(m_id, new_row['pool_size'])
+                    changed.append("Piscina")
+                if old_row['name'] != new_row['name'] or old_row['date'] != new_row['date']:
+                    update_meet_info(m_id, new_row['name'], new_row['date'])
+                    changed.append("Info")
+                    
+                if changed:
+                    st.toast(f"Torneo actualizado!", icon="✅")
                     time.sleep(1) # Visual feedback
                     st.rerun()
 
