@@ -8,6 +8,7 @@ import textwrap
 from datetime import datetime
 import time
 import sys
+import itertools
 
 # Configuration
 # Configuration
@@ -21,7 +22,7 @@ ROOT_DIR = os.path.dirname(BASE_DIR)
 DB_PATH = os.path.join(ROOT_DIR, "data", "natacion.db")
 TEAM_ID = "10034725" # Rama Peñalolén
 
-st.set_page_config(page_title="RamaCloud", page_icon="🏊", layout="wide")
+st.set_page_config(page_title="RamaCloud", page_icon="🏊", layout="wide", initial_sidebar_state="collapsed")
 
 import base64
 
@@ -93,12 +94,79 @@ def get_event_display_name(event_name):
         return event_name
     return EVENT_DB_TO_ES.get(event_name.strip(), event_name)
 
+def normalize_scraped_event_name(raw_name):
+    """
+    Normalizes 'Mujeres 9-10 400 Metro Libre' -> '400 Free'
+    Handles Relays to avoid false positives (e.g. '200 Relevo' != '200 Individual')
+    """
+    if not isinstance(raw_name, str):
+        return raw_name
+        
+    name = raw_name.lower()
+    
+    # Check for Relay
+    is_relay = "relevo" in name or "relay" in name
+    
+    # 1. Extract Distance
+    import re
+    # Match number at start of string or after space
+    # Look for 4x50, 4x100 patterns for Relays
+    if is_relay:
+        # Simple logic: if it's a relay, we append "Relay" to style
+        # But we must capture the distance logic if possible, or usually Relays are 200 (4x50) or 400 (4x100) or 800 (4x200)
+        # For qualification purpose, if we return "200 Free Relay", it won't match "200 Free" standard.
+        pass
+    
+    dist_match = re.search(r'(\b|^)(25|50|100|200|400|800|1500)(\b|$)', name)
+    if not dist_match:
+        # Maybe it's "4 x 50"
+        if "4 x 50" in name or "4x50" in name: distance = "200"
+        elif "4 x 100" in name or "4x100" in name: distance = "400"
+        else: return raw_name
+    else:
+        distance = dist_match.group(2)
+    
+    # 2. Extract Style
+    style = None
+    if "libre" in name or "free" in name:
+        style = "Free"
+    elif "espalda" in name or "back" in name:
+        style = "Back"
+    elif "pecho" in name or "breast" in name:
+        style = "Breast"
+    elif "mariposa" in name or "fly" in name:
+        style = "Fly"
+    elif "combinado" in name or "medley" in name or "ci" in name or "im" in name:
+        # "CI" = Combinado Individual usually, but sometimes used in Relays "Combinado Relevo"
+        style = "IM"
+        # If it's a relay, "IM Relay" is usually called "Medley Relay" in DB keys
+        if is_relay: style = "Medley"
+        
+    if not style:
+        return raw_name
+        
+    # 3. Construct DB Name
+    final_name = f"{distance} {style}"
+    
+    if is_relay:
+        final_name += " Relay"
+        
+    return final_name
+
 def resolve_db_event_names(display_name):
     if not isinstance(display_name, str):
         return [display_name]
     if display_name in EVENT_ES_TO_DB_MULTI:
         return EVENT_ES_TO_DB_MULTI[display_name]
-    return [EVENT_ES_TO_DB.get(display_name, display_name)]
+        
+    # Try exact match first
+    mapped = EVENT_ES_TO_DB.get(display_name)
+    if mapped:
+        return [mapped]
+        
+    # Try fallback normalization
+    normalized = normalize_scraped_event_name(display_name)
+    return [normalized]
 
 def get_img_as_base64(file):
     with open(file, "rb") as f:
@@ -144,6 +212,14 @@ st.markdown("""
     div[data-testid="stTextInput"] input {
         border-radius: 10px;
     }
+    
+    /* HIDE SIDEBAR COMPLETELY */
+    section[data-testid="stSidebar"] {
+        display: none;
+    }
+    div[data-testid="stSidebarCollapsedControl"] {
+        display: none;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -160,12 +236,29 @@ def load_national_records():
     conn.close()
     return df
 
+    return df
+
 def load_minimas():
     conn = get_connection()
     if not conn: return pd.DataFrame()
     df = pd.read_sql("SELECT * FROM minimum_standards", conn)
     conn.close()
     return df
+
+def calculate_category(dob):
+    if pd.isnull(dob): return "Desconocida"
+    try:
+        today = datetime.now()
+        # Biological Age: Age on Dec 31st of current year
+        age = today.year - dob.year
+        
+        if age <= 10: return "Infantil A (y menor)"
+        if age == 11 or age == 12: return "Infantil B"
+        if age == 13 or age == 14: return "Juvenil A"
+        if age >= 15 and age <= 17: return "Juvenil B"
+        if age >= 18: return "Todo Competidor"
+        return "Desconocida"
+    except: return "Desconocida"
 
 def get_record_generic(df, event_name, pool_size, gender, category_code):
     mapping = {
@@ -306,19 +399,11 @@ def load_all_best_times():
     df['birth_date'] = pd.to_datetime(df['birth_date'], errors='coerce')
     current_year = datetime.now().year
     
-    def get_simple_cat(dob):
-        if pd.isnull(dob): return "Desconocida"
-        try:
-            today = datetime.now()
-            # Strict actual age calculation
-            age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
-            
-            if age <= 14: return f"{age} años"
-            if age <= 17: return "15-17 años"
-            return "18-99 años"
-        except: return "Desconocida"
-
-    df['category'] = df['birth_date'].apply(get_simple_cat)
+    # Parse dates
+    df['birth_date'] = pd.to_datetime(df['birth_date'], errors='coerce')
+    df['date'] = pd.to_datetime(df['date'], errors='coerce')
+    
+    df['category'] = df['birth_date'].apply(calculate_category)
     df['seconds'] = df['time'].apply(parse_time)
     df = df.dropna(subset=['seconds'])
     
@@ -487,6 +572,17 @@ def update_meet_pool_size(meet_id, new_size):
         conn.commit()
     except Exception as e:
         st.error(f"Error updating pool size: {e}")
+    finally:
+        conn.close()
+
+def update_meet_info(meet_id, new_name, new_date):
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE meets SET name = ?, date = ? WHERE id = ?", (new_name, new_date, meet_id))
+        conn.commit()
+    except Exception as e:
+        st.error(f"Error updating meet info: {e}")
     finally:
         conn.close()
 
@@ -1137,7 +1233,7 @@ def render_team_view(swimmers_df):
                     
                     <div style="display: flex; gap: 10px; margin-top: 5px; flex-wrap: wrap; justify-content: center;">
                         <span class="coach-tag">Coach Infantiles: Oscar Cifuentes</span>
-                        <span class="coach-tag">Coach Pre-Rama: Valentina Contalba</span>
+                        <span class="coach-tag">Coach Menores: Valeria Contalba</span>
                     </div>
                 </div>
             </div>
@@ -1151,21 +1247,21 @@ def render_team_view(swimmers_df):
             <div style="margin-top: 1rem; opacity: 0.9;">
                 <div>Santiago, Chile</div>
                 <div style="margin-top: 5px;"><strong>Head Coach:</strong> Cesar Cereceda</div>
-                <div><strong>Infantiles:</strong> Oscar Cifuentes • <strong>Pre-Rama:</strong> Valentina Contalba</div>
+                <div><strong>Infantiles:</strong> Oscar Cifuentes • <strong>Menores:</strong> Valeria Contalba</div>
             </div>
         </div>
         """), unsafe_allow_html=True)
         
     st.markdown("---")
     
-    tab_list = ["🏠 Inicio", "🏊 Plantel", "🏆 Torneos", "📊 Análisis", "📈 Estadisticas", "🏅 Clasificados"]
+    tab_list = ["🏠 Inicio", "🏊 Plantel", "🏆 Torneos", "📊 Análisis", "📈 Estadisticas", "🏅 Clasificados", "🏊 Relevos"]
     is_admin = st.session_state.get("username") == "admin"
     if is_admin:
         tab_list.append("📝 Ingreso")
         
     tabs = st.tabs(tab_list)
-    t_home, t_roster, t_meets, t_analysis, t_stats, t_qualifiers = tabs[0], tabs[1], tabs[2], tabs[3], tabs[4], tabs[5]
-    t_ingreso = tabs[6] if is_admin else None
+    t_home, t_roster, t_meets, t_analysis, t_stats, t_qualifiers, t_relays = tabs[0], tabs[1], tabs[2], tabs[3], tabs[4], tabs[5], tabs[6]
+    t_ingreso = tabs[7] if is_admin else None
     
     with t_home:
         c1, c2, c3 = st.columns(3)
@@ -1241,23 +1337,29 @@ def render_team_view(swimmers_df):
         edited_df = st.data_editor(
             editor_df,
             column_config=column_cfg,
-            disabled=["name", "date", "location", "address"], # Only pool_size editable
+            disabled=["location", "address"], # Allowed name, date, pool_size
             use_container_width=True,
             hide_index=True,
             key="meets_editor"
         )
         
         # Detect Changes
-        # This simple equality check works because source is sorted and index preserved
         if not edited_df.equals(editor_df):
             for i in editor_df.index:
-                old_val = editor_df.loc[i, 'pool_size']
-                new_val = edited_df.loc[i, 'pool_size']
-                m_id = editor_df.loc[i, 'id'] # ID is hidden but present
+                old_row = editor_df.loc[i]
+                new_row = edited_df.loc[i]
+                m_id = old_row['id'] # ID is hidden but present
                 
-                if old_val != new_val:
-                    update_meet_pool_size(m_id, new_val)
-                    st.toast(f"Piscina actualizada a {new_val}!", icon="✅")
+                changed = []
+                if old_row['pool_size'] != new_row['pool_size']:
+                    update_meet_pool_size(m_id, new_row['pool_size'])
+                    changed.append("Piscina")
+                if old_row['name'] != new_row['name'] or old_row['date'] != new_row['date']:
+                    update_meet_info(m_id, new_row['name'], new_row['date'])
+                    changed.append("Info")
+                    
+                if changed:
+                    st.toast(f"Torneo actualizado!", icon="✅")
                     time.sleep(1) # Visual feedback
                     st.rerun()
 
@@ -1383,6 +1485,9 @@ def render_team_view(swimmers_df):
 
     with t_qualifiers:
         render_qualifiers_tab(swimmers_df)
+        
+    with t_relays:
+        render_relay_builder()
         
     if is_admin and t_ingreso:
         with t_ingreso:
@@ -1643,7 +1748,9 @@ def render_profile_view(swimmer_id, swimmers_df):
                          if isinstance(swimmer_dob, str):
                             bd = pd.to_datetime(swimmer_dob)
                          else: bd = swimmer_dob
-                         current_age = datetime.now().year - bd.year
+                         today = datetime.now()
+                         # Proper age calculation: subtract 1 if birthday hasn't occurred yet this year
+                         current_age = today.year - bd.year - ((today.month, today.day) < (bd.month, bd.day))
                      except: pass
                  
                  # Helper to find closest category match
@@ -1844,11 +1951,275 @@ def show_login_form(callback, error=None):
         if error:
             st.markdown(f'<p style="color: #ff4b4b; margin-top: 10px; background: rgba(0,0,0,0.5); padding: 5px; border-radius: 5px;">{error}</p>', unsafe_allow_html=True)
 
+# --- RELAY BUILDER ---
+def render_relay_builder():
+    st.subheader("🏊 Armado de Relevos")
+    st.markdown("Herramienta para proyectar los relevos más rápidos según **Mejores Tiempos Históricos**.")
+    
+    # Load Data
+    with st.spinner("Cargando tiempos..."):
+        df = load_all_best_times()
+    
+    if df.empty:
+        st.warning("No hay tiempos registrados en el sistema.")
+        return
+
+    # --- FILTERS ---
+    c1, c2 = st.columns([2, 1])
+    
+    # Category Sort Order
+    cat_order = ["Infantil A (y menor)", "Infantil B", "Juvenil A", "Juvenil B", "Todo Competidor"]
+    categories = df['category'].unique()
+    avail_cats = [c for c in cat_order if c in categories]
+    # Add any others not in list
+    others = [c for c in categories if c not in cat_order]
+    avail_cats.extend(others)
+    
+    selected_cat = c1.selectbox("Categoría", avail_cats, key="relay_cat")
+    selected_pool = c2.radio("Piscina", ["50m", "25m"], index=0, horizontal=True, key="relay_pool")
+    
+    # Filter Dataset
+    subset = df[
+        (df['category'] == selected_cat) & 
+        (df['pool_size'] == selected_pool)
+    ].copy()
+    
+    if subset.empty:
+        st.info(f"No se encontraron nadadores para **{selected_cat}** en piscina de **{selected_pool}**.")
+        return
+        
+    # --- HELPER FUNCTIONS ---
+    def get_top_swimmers(sub_df, style_abbr, n=4, exclude_names=[]):
+        # style_abbr: "Free", "Back", "Breast", "Fly"
+        evt_name = f"50 {style_abbr}"
+        candidates = sub_df[
+            (sub_df['event_name'] == evt_name) & 
+            (~sub_df['name'].isin(exclude_names))
+        ].sort_values('seconds', ascending=True)
+        return candidates.head(n)
+
+    def display_relay_team(team_list, title, projected_time):
+        st.markdown(f"#### {title}")
+        st.markdown(f"**Tiempo Proyectado:** `{format_seconds(projected_time)}`")
+        disp_df = pd.DataFrame(team_list)
+        if not disp_df.empty:
+             st.dataframe(
+                disp_df[['Posta', 'Nadador', 'Tiempo', 'Fecha']], 
+                use_container_width=True, 
+                hide_index=True
+             )
+        else:
+            st.warning("No hay suficientes nadadores.")
+
+    # --- RELAY TABS ---
+    t_free, t_medley = st.tabs(["🏊 4x50 Libre", "🏊 4x50 Combinado"])
+    
+    # 1. FREE RELAY
+    with t_free:
+        st.caption("Selecciona los 4 mejores tiempos en **50 Free**.")
+        c_men, c_women, c_mixed = st.tabs(["Varones", "Damas", "Mixto"])
+        
+        # MEN FREE
+        with c_men:
+            m_df = subset[subset['gender'] == 'M']
+            team = get_top_swimmers(m_df, "Free", 4)
+            if len(team) >= 4:
+                total_time = team['seconds'].sum()
+                team_display = []
+                for i, (_, row) in enumerate(team.iterrows()):
+                    team_display.append({
+                        "Posta": f"N° {i+1}", 
+                        "Nadador": row['name'], 
+                        "Tiempo": format_seconds(row['seconds']),
+                        "Fecha": row['date'].strftime('%Y-%m-%d') if pd.notnull(row['date']) else "?"
+                    })
+                display_relay_team(team_display, "4x50 Libre Varones", total_time)
+            else:
+                st.warning(f"Solo hay {len(team)} nadadores hombres disponibles (se requieren 4).")
+
+        # WOMEN FREE
+        with c_women:
+            f_df = subset[subset['gender'] == 'F']
+            team = get_top_swimmers(f_df, "Free", 4)
+            if len(team) >= 4:
+                total_time = team['seconds'].sum()
+                team_display = []
+                for i, (_, row) in enumerate(team.iterrows()):
+                    team_display.append({
+                        "Posta": f"N° {i+1}", 
+                        "Nadador": row['name'], 
+                        "Tiempo": format_seconds(row['seconds']),
+                        "Fecha": row['date'].strftime('%Y-%m-%d') if pd.notnull(row['date']) else "?"
+                    })
+                display_relay_team(team_display, "4x50 Libre Damas", total_time)
+            else:
+                st.warning(f"Solo hay {len(team)} nadadoras mujeres disponibles (se requieren 4).")
+
+        # MIXED FREE
+        with c_mixed:
+            m_top = get_top_swimmers(subset[subset['gender'] == 'M'], "Free", 2)
+            f_top = get_top_swimmers(subset[subset['gender'] == 'F'], "Free", 2)
+            if len(m_top) == 2 and len(f_top) == 2:
+                combined = pd.concat([m_top, f_top]).sort_values('seconds')
+                total_time = combined['seconds'].sum()
+                team_display = []
+                for i, (_, row) in enumerate(combined.iterrows()):
+                    gender_icon = "♂️" if row['gender'] == 'M' else "♀️"
+                    team_display.append({
+                        "Posta": f"{gender_icon}", "Nadador": row['name'], 
+                        "Tiempo": format_seconds(row['seconds']), "Fecha": row['date'].strftime('%Y-%m-%d')
+                    })
+                display_relay_team(team_display, "4x50 Libre Mixto (2H + 2M)", total_time)
+            else:
+                st.warning(f"Faltan nadadores. Disp: {len(m_top)} H, {len(f_top)} M.")
+
+    # 2. MEDLEY RELAY
+    with t_medley:
+        st.caption("Orden Oficial: Espalda -> Pecho -> Mariposa -> Libre")
+        styles = ["Back", "Breast", "Fly", "Free"]
+        c_men, c_women, c_mixed = st.tabs(["Varones", "Damas", "Mixto"])
+        
+        def solve_medley_team(gender_df):
+            # Gather Candidates (Top 3 per style)
+            cands = {}
+            u_names = set()
+            for s in styles:
+                sub = get_top_swimmers(gender_df, s, 3) 
+                cands[s] = sub
+                u_names.update(sub['name'].tolist())
+            
+            unique_names = list(u_names)
+            if len(unique_names) < 4: return None, 9999
+            
+            swimmer_times = {n: {} for n in unique_names}
+            for s in styles:
+                for _, row in cands[s].iterrows():
+                    swimmer_times[row['name']][s] = row['seconds']
+            
+            best_team = None
+            best_total = float('inf')
+            
+            # Permutations of name assignment
+            for p in itertools.permutations(unique_names, 4):
+                current_time = 0
+                valid = True
+                team_assignment = []
+                for i, swimmer_name in enumerate(p):
+                    style = styles[i]
+                    t = swimmer_times[swimmer_name].get(style)
+                    if t is None:
+                        valid = False
+                        break
+                    current_time += t
+                    team_assignment.append((style, swimmer_name, t))
+                
+                if valid and current_time < best_total:
+                    best_total = current_time
+                    best_team = team_assignment
+            return best_team, best_total
+
+        # MEN MEDLEY
+        with c_men:
+            sol, t = solve_medley_team(subset[subset['gender'] == 'M'])
+            if sol:
+                team_display = [{"Posta": s, "Nadador": n, "Tiempo": format_seconds(sec), "Fecha": "Calc"} for (s,n,sec) in sol]
+                display_relay_team(team_display, "4x50 Combinado Varones (Optimizado)", t)
+            else:
+                 st.warning("No se pudo armar equipo.")
+
+        # WOMEN MEDLEY
+        with c_women:
+            sol, t = solve_medley_team(subset[subset['gender'] == 'F'])
+            if sol:
+                team_display = [{"Posta": s, "Nadador": n, "Tiempo": format_seconds(sec), "Fecha": "Calc"} for (s,n,sec) in sol]
+                display_relay_team(team_display, "4x50 Combinado Damas (Optimizado)", t)
+            else:
+                 st.warning("No se pudo armar equipo.")
+
+        # MIXED MEDLEY
+        with c_mixed:
+            st.markdown("Busca la combinación óptima de **2 H hombres + 2 Mujeres** probando las 6 permutaciones de género.")
+            permutations_pattern = set(itertools.permutations(['M', 'M', 'F', 'F']))
+            global_best_team = None
+            global_best_time = float('inf')
+            m_df_mixed = subset[subset['gender'] == 'M']
+            f_df_mixed = subset[subset['gender'] == 'F']
+            
+            for pattern in permutations_pattern:
+                valid_pattern = True
+                curr_cands = {}  
+                for i, gender in enumerate(pattern):
+                    style = styles[i]
+                    src = m_df_mixed if gender == 'M' else f_df_mixed
+                    top = get_top_swimmers(src, style, 3)
+                    if top.empty:
+                        valid_pattern = False; break
+                    curr_cands[style] = top
+                
+                if not valid_pattern: continue
+                
+                # Iterate product of candidates
+                cand_lists = [curr_cands[s] for s in styles]
+                for team_combo in itertools.product(*[d.iterrows() for d in cand_lists]):
+                    assigned_names = [row['name'] for _, row in team_combo]
+                    if len(set(assigned_names)) != 4: continue
+                    curr_t = sum([row['seconds'] for _, row in team_combo])
+                    
+                    if curr_t < global_best_time:
+                        global_best_time = curr_t
+                        formatted_sol = []
+                        for idx, (_, row) in enumerate(team_combo):
+                            formatted_sol.append({
+                                "Posta": f"{styles[idx]} ({row['gender']})",
+                                "Nadador": row['name'], "Tiempo": format_seconds(row['seconds']), "Fecha": "Calc"
+                            })
+                        global_best_team = formatted_sol
+
+            if global_best_team:
+                display_relay_team(global_best_team, "4x50 Combinado Mixto (Mejor Combinación)", global_best_time)
+            else:
+                st.warning("No se pudo armar un equipo mixto válido.")
+
 # --- MAIN APP LOGIC ---
 def main():
     # Admin Panel (Sidebar) - REMOVED, now in Ingreso Tab
     # user = st.session_state.get("username", "Guest")
     # if user == "admin": ... (Removed)
+    
+    # Global CSS for Safari/Dark Mode Dropdowns - FINAL FIX
+    st.markdown("""
+        <style>
+            /* 1. Closed Input Box */
+            .stSelectbox div[data-baseweb="select"] div {
+                color: white !important;
+                -webkit-text-fill-color: white !important;
+            }
+
+            /* 2. The Main Dropdown List Container */
+            ul[data-testid="stSelectboxVirtualDropdown"] {
+                background-color: #0f172a !important;
+            }
+
+            /* 3. Individual Options (Default State) */
+            li[role="option"] {
+                background-color: #0f172a !important;
+                color: white !important;
+            }
+            
+            /* 4. Text inside Options */
+            li[role="option"] div,
+            li[role="option"] span {
+                color: white !important;
+                -webkit-text-fill-color: white !important;
+            }
+
+            /* 5. Hover & Selected State */
+            li[role="option"]:hover,
+            li[role="option"][aria-selected="true"] {
+                background-color: #334155 !important;
+            }
+        </style>
+    """, unsafe_allow_html=True)
     
     swimmers = load_swimmers()
     if swimmers.empty:
@@ -1859,6 +2230,16 @@ def main():
         render_profile_view(st.session_state['selected_swimmer_id'], swimmers)
     else:
         render_team_view(swimmers)
+
+    # --- SIDEBAR FOOTER REMOVED ---
+    # Moved to main page footer
+    st.markdown("---")
+    db_timestamp = "Unknown"
+    if os.path.exists(DB_PATH):
+        ts = os.path.getmtime(DB_PATH)
+        db_timestamp = datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M')
+    
+    st.caption(f"DB Version: {db_timestamp} | v1.2 - Historical Sync")
 
 if __name__ == "__main__":
     if check_password():
