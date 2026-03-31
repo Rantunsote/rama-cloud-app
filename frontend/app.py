@@ -1258,7 +1258,7 @@ def render_team_view(swimmers_df):
                     
                     <div style="display: flex; gap: 10px; margin-top: 5px; flex-wrap: wrap; justify-content: center;">
                         <span class="coach-tag">Coach Infantiles: Oscar Cifuentes</span>
-                        <span class="coach-tag">Coach Pre-Rama: Valentina Contalba</span>
+                        <span class="coach-tag">Coach Menores: Valeria Contalba</span>
                     </div>
                 </div>
             </div>
@@ -1272,7 +1272,7 @@ def render_team_view(swimmers_df):
             <div style="margin-top: 1rem; opacity: 0.9;">
                 <div>Santiago, Chile</div>
                 <div style="margin-top: 5px;"><strong>Head Coach:</strong> Cesar Cereceda</div>
-                <div><strong>Infantiles:</strong> Oscar Cifuentes • <strong>Pre-Rama:</strong> Valentina Contalba</div>
+                <div><strong>Infantiles:</strong> Oscar Cifuentes • <strong>Menores:</strong> Valeria Contalba</div>
             </div>
         </div>
         """), unsafe_allow_html=True)
