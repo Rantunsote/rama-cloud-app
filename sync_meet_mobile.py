@@ -5,7 +5,82 @@ import os
 import unicodedata
 from fuzzywuzzy import process, fuzz
 import re
+import csv
 from normalize_events import normalize_event_name_v2
+
+# --- CONFIG ---
+LIVE_DB_PATH = '/Users/jrb/Library/Containers/7F2BC93B-8FAC-48B0-BF83-D128B1ADF11C/Data/Documents/MeetMobile.db'
+MM_DB_PATH = '/Users/jrb/Documents/RAMA/swim_scraper/meet_mobile_dump.db'
+LOCAL_DB_PATH = '/Users/jrb/Documents/RAMA/swim_scraper/data/natacion.db'
+WHITELIST_PATH = '/Users/jrb/Documents/RAMA/swim_scraper/data/swimmers_whitelist.csv'
+# JAN_1_2020_TIMESTAMP = 1577836800 
+# JAN_1_2010_TIMESTAMP = 1262304000
+JAN_1_2000_TIMESTAMP = 946684800 # Capture ALL history
+
+def normalize_text(text):
+    """
+    Normalize text: strip, lowercase, remove accents.
+    """
+    if not isinstance(text, str): return ""
+    text = text.strip().lower()
+    text = unicodedata.normalize('NFKD', text).encode('ASCII', 'ignore').decode('utf-8')
+    return text
+
+def load_whitelist():
+    """
+    Loads whitelist and returns a list of sets of name tokens.
+    [ {'josefa', 'acuna', 'rojas'}, {'baltazar', 'aguirre'} ]
+    """
+    whitelist_tokens = []
+    if not os.path.exists(WHITELIST_PATH):
+        print(f"WARNING: Whitelist not found at {WHITELIST_PATH}")
+        return []
+    
+    with open(WHITELIST_PATH, 'r', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            # Construct full name from parts
+            # Nombre, Apellido Paterno, Apellido Materno
+            parts = [row.get('Nombre', ''), row.get('Apellido Paterno', ''), row.get('Apellido Materno', '')]
+            full_str = " ".join([p for p in parts if p]).strip()
+            
+            # Normalize and tokenize
+            norm = normalize_text(full_str)
+            tokens = set(norm.split())
+            if tokens:
+                whitelist_tokens.append(tokens)
+                
+    print(f"Loaded {len(whitelist_tokens)} swimmers from whitelist.")
+    return whitelist_tokens
+
+def is_whitelisted(name_str, whitelist_tokens_list):
+    """
+    Full Name Token Subset Match with Fuzzy Fallback.
+    Returns True if name_str matches any entry in whitelist.
+    """
+    norm_name = normalize_text(name_str)
+    name_tokens = set(norm_name.split())
+    
+    if not name_tokens: return False
+    
+    # 1. Strict Token Subset
+    for w_tokens in whitelist_tokens_list:
+        if w_tokens.issubset(name_tokens) or name_tokens.issubset(w_tokens):
+            return True
+
+    # 2. Fuzzy Fallback (for 'Gonzales' vs 'Gonzalez')
+    # Use fuzzy string comparison against reconstructed whitelist strings
+    # This might be slow if list is huge, but for 40 swimmers it's instant.
+    for w_tokens in whitelist_tokens_list:
+        w_str = " ".join(w_tokens)
+        score = fuzz.token_set_ratio(norm_name, w_str)
+        if score >= 90:
+             # Double check to prevent "Juan Perez" matching "Juan Gonzalez" with high score? 
+             # token_set_ratio handles subset logic well.
+             # e.g. "Lourdes Gonzales" vs "Lourdes Gonzalez Rodriguez" -> High score
+             return True
+            
+    return False
 
 def normalize_event_name(raw_name):
     """Normalizes event names like 'Hombres 11&O 200 Metro Pecho' to '200 Breast'."""
@@ -74,12 +149,6 @@ def normalize_event_name(raw_name):
     clean = re.sub(r'\s+', ' ', clean).strip()
     return clean
 
-# Config
-LIVE_DB_PATH = '/Users/jrb/Library/Containers/7F2BC93B-8FAC-48B0-BF83-D128B1ADF11C/Data/Documents/MeetMobile.db'
-MM_DB_PATH = '/Users/jrb/Documents/RAMA/swim_scraper/meet_mobile_dump.db'
-LOCAL_DB_PATH = '/Users/jrb/Documents/RAMA/swim_scraper/data/natacion.db'
-JAN_1_2024_TIMESTAMP = 1609459200 # Jan 1 2021 to capture all history
-
 def refresh_mm_db():
     pass 
     # if os.path.exists(LIVE_DB_PATH):
@@ -112,9 +181,15 @@ def sync_data():
     local_conn = get_local_connection()
     local_cursor = local_conn.cursor()
     
-    # 1. Get Target Meets (2024 + Team Filter)
+    # 0. Load Whitelist
+    whitelist_tokens = load_whitelist()
+    if not whitelist_tokens:
+        print("ABORTING: No whitelist loaded from CSV.")
+        return
+
+    # 1. Get Target Meets (ALL HISTORY + Team Filter)
     # Re-using logic from extract_full_report but focused on Meets
-    print("Finding Meets...")
+    print("Finding Meets (History)...")
     # Find team IDs first
     teams = pd.read_sql("SELECT id FROM Team WHERE name LIKE '%Penalolen%' OR name LIKE '%CRNP%' OR name LIKE '%Rama%'", mm_conn)
     team_ids = tuple(teams['id'].tolist())
@@ -125,7 +200,7 @@ def sync_data():
     FROM Meet m
     JOIN Swimmer s ON s.meetId = m.id
     WHERE s.teamId IN {team_ids}
-      AND m.startDateUtc >= {JAN_1_2024_TIMESTAMP}
+      AND m.startDateUtc >= {JAN_1_2000_TIMESTAMP}
     """
     meets_df = pd.read_sql(meet_query, mm_conn)
     print(f"Found {len(meets_df)} meets to sync.")
@@ -170,8 +245,6 @@ def sync_data():
                 target_pool = res[1]
             else:
                 local_cursor.execute("UPDATE meets SET pool_size = '25m' WHERE id = ?", (new_meet_id,))
-            
-            # print(f"Syncing {meet_name} using pool size: {target_pool}")
             pass
             
         # 4. Get Results for this Meet + Team
@@ -198,17 +271,21 @@ def sync_data():
         for _, row in results_df.iterrows():
             s_name = normalize_name(row['SwimmerName'])
             
+            # --- WHITELIST CHECK ---
+            if not is_whitelisted(s_name, whitelist_tokens):
+                # print(f"  [SKIP] {s_name} not in whitelist.")
+                continue
+            
             swimmer_id = local_swimmers.get(s_name)
             
             if not swimmer_id:
-                # Fuzzy Match Fallback
+                # Fuzzy Match Fallback (Still useful for small variations even with whitelist)
                 best_match, score = process.extractOne(s_name, local_swimmer_names, scorer=fuzz.token_set_ratio)
                 if score >= 90:
                     swimmer_id = local_swimmers[best_match]
-                    # print(f"  [Fuzzy] {s_name} -> {best_match} ({score})")
             
             if not swimmer_id:
-                # 2. BLACKLIST CHECK
+                # 2. BLACKLIST CHECK (Redundant with whitelist but safe)
                 if s_name in ['[Relay] [Swimmer]', 'Unknown Swimmer 4']:
                     continue
 
@@ -230,35 +307,28 @@ def sync_data():
                 local_swimmers[s_name] = swimmer_id
                 local_swimmer_names.append(s_name)
             
-            # This logic requires updating the query first.
-            # So I will abort this Replace and do a larger one that includes the query update.
-                
-            # Check if result exists (avoid dupes)
+            # Check if result exists (avoid dupes based on TIME as well)
             # Use NORMALIZED event name
             norm_event = normalize_event_name_v2(row['EventName'])
             
-            check_sql = "SELECT id FROM results WHERE swimmer_id = ? AND meet_id = ? AND event_name = ?"
-            existing = local_cursor.execute(check_sql, (swimmer_id, new_meet_id, norm_event)).fetchone()
+            raw_time = row['Time']
+            if not raw_time: continue
+            raw_time = raw_time.replace(',', '.')
+            
+            check_sql = "SELECT id FROM results WHERE swimmer_id = ? AND meet_id = ? AND event_name = ? AND time = ?"
+            existing = local_cursor.execute(check_sql, (swimmer_id, new_meet_id, norm_event, raw_time)).fetchone()
             
             if existing:
                 result_id = existing[0]
-                # print(f"    Result exists {result_id}, checking splits...")
             else:
-                # Replace comma with dot
-                raw_time = row['Time']
-                if not raw_time: continue
-                raw_time = raw_time.replace(',', '.')
-                
                 local_cursor.execute("""
                     INSERT INTO results (swimmer_id, meet_id, event_name, time, points, place, pool_size, time_url)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """, (swimmer_id, new_meet_id, norm_event, raw_time, row['Points'], row['Place'], target_pool, "MeetMobile"))
                 result_id = local_cursor.lastrowid
-                # print(f"    Added Result: {s_name} - {row['EventName']}")
             
             # 5. Sync Splits
             # Get Splits for this HeatEntryId
-            # We need to query specific HeatEntryId splits
             s_query = f"""
             SELECT sequence, distance, time, cumulativeTime, stroke
             FROM SplitTime
