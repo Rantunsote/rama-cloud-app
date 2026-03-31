@@ -1293,6 +1293,10 @@ def render_team_view(swimmers_df):
         c1.metric("Nadadores Activos", len(swimmers_df))
         
         meets_df = load_meets()
+        if not meets_df.empty:
+            meets_df['_sort_date'] = pd.to_datetime(meets_df['date'], errors='coerce')
+            meets_df = meets_df.sort_values(by='_sort_date', ascending=False)
+            
         c2.metric("Torneos Registrados", len(meets_df))
         
         # Recent Meets
