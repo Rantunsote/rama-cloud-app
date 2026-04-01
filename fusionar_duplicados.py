@@ -1,75 +1,60 @@
 import sqlite3
 import pandas as pd
-from difflib import SequenceMatcher
 import re
 import os
 
-# Ajusta la ruta base donde se encuentre el script
-ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(ROOT_DIR, "data", "natacion.db")
+DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "natacion.db")
 
-def normalize(name):
-    n = str(name).lower()
-    n = re.sub(r'(?i)resultados completos', '', n).strip()
-    n = re.sub(r'seme\b', 'semestre', n)
-    return n
-
-def similar(a, b):
-    na = normalize(a)
-    nb = normalize(b)
+# Hardcoded true mapping to completely bypass any algorithmic failure
+MERGE_MAP = {
+    # Nombres EXACTOS de Fechida -> IDs EXACTOS de MeetMobile en la base
+    "Resultados Completos Copa Chile Etapa 3": "MM_5175102",  # Esto es Etapa 3 2025
+    "Resultados Completos Copa Chile 2S 2025 Etapa 2": "MM_5319108",
+    "Resultados Completos Copa Chile 2026 Etapa 1 Primer Semestre": "MANUAL_COPA_CHILE_2026_1",
+    "Resultados Completos Copa Chile 2025 Etapa 1": "MM_5300206",
     
-    # Penalizar si los años son distintos explícitamente
-    ya = re.search(r'202\d', na)
-    yb = re.search(r'202\d', nb)
-    if ya and yb and ya.group() != yb.group():
-        return 0.0
-        
-    return SequenceMatcher(None, na, nb).ratio()
+    "Resultados Completos Campeonato Nacional Infantil De Verano 2026": "MM_5612109",
+    "Resultados Completos Campeonato Nacional De Desarrollo Verano 2026": "MM_5593509",
+    "Resultados Completos Festival De Menores Invierno 2025": "MM_5202805",
+}
 
 def clean_duplicates():
-    print(f"Conectando a la base de datos en: {DB_PATH}")
-    if not os.path.exists(DB_PATH):
-        print("ERROR: Base de datos no encontrada.")
-        return
-
+    print(f"Abriendo DB: {DB_PATH}")
     conn = sqlite3.connect(DB_PATH)
-    meets = pd.read_sql("SELECT id, name, date FROM meets", conn)
     c = conn.cursor()
 
+    meets = pd.read_sql("SELECT id, name FROM meets", conn)
     f_meets = meets[meets['id'].str.startswith('F_')]
-    mm_meets = meets[~meets['id'].str.startswith('F_')]
-
+    
     if f_meets.empty:
-        print("No hay competencias nuevas de Fechida (prefijo F_) por procesar.")
+        print("No hay meets pendientes.")
         return
 
-    print(f"Evaluando {len(f_meets)} torneos recientes de Fechida...")
-
     for _, fm in f_meets.iterrows():
-        best_score = 0
-        best_match = None
+        fechida_name = str(fm['name']).strip()
+        f_id = fm['id']
         
-        for _, mm in mm_meets.iterrows():
-            sc = similar(fm['name'], mm['name'])
-            if sc > best_score:
-                best_score = sc
-                best_match = mm
-                
-        # Umbral alto para evitar mezclar torneos distintos
-        if best_score >= 0.85:
-            # Es un duplicado. Pasamos los resultados al original y borramos el nuevo
-            c.execute("UPDATE results SET meet_id = ? WHERE meet_id = ?", (best_match['id'], fm['id']))
-            c.execute("DELETE FROM meets WHERE id = ?", (fm['id'],))
-            print(f"[FUSIONADO] '{fm['name']}' -> '{best_match['name']}' (Similitud: {best_score:.2f})")
+        if fechida_name in MERGE_MAP:
+            target_id = MERGE_MAP[fechida_name]
+            
+            # Verify target exists
+            c.execute("SELECT name FROM meets WHERE id=?", (target_id,))
+            res = c.fetchone()
+            if res:
+                print(f"[FUSIONADO] '{fechida_name}' -> '{res[0]}'")
+                c.execute("UPDATE results SET meet_id = ? WHERE meet_id = ?", (target_id, f_id))
+                c.execute("DELETE FROM meets WHERE id = ?", (f_id,))
+            else:
+                print(f"Error: Target {target_id} no existe en la base. Dejando como nuevo torneo.")
         else:
-            # Es un torneo realmente nuevo, sólo le limpiamos el nombre
-            clean = re.sub(r'(?i)resultados completos', '', str(fm['name'])).strip()
-            c.execute("UPDATE meets SET name = ? WHERE id = ?", (clean, fm['id']))
-            print(f"[NUEVO TORNEO] Renombrado '{fm['name']}' -> '{clean}'")
+            # Nuevo torneo (no tiene equivalente previo en MeetMobile)
+            clean = re.sub(r'(?i)resultados completos', '', fechida_name).strip()
+            c.execute("UPDATE meets SET name = ? WHERE id = ?", (clean, f_id))
+            print(f"[NUEVO TORNEO] Renombrado '{fechida_name}' -> '{clean}'")
 
     conn.commit()
     conn.close()
-    print("\nProceso de fusión y limpieza completado con éxito.")
+    print("\n¡Fusionado con precisión!")
 
 if __name__ == "__main__":
     clean_duplicates()
