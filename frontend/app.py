@@ -1351,6 +1351,7 @@ def render_team_view(swimmers_df):
             "id": None, 
             "url": None,
             "date_obj": None,
+            "_sort_date": None,
             "name": "Nombre",
             "date": "Fecha",
             "location": "Ciudad",
