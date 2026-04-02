@@ -4,13 +4,7 @@ import random
 import sys
 import re
 import os
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from webdriver_manager.chrome import ChromeDriverManager
+from curl_cffi import requests
 from bs4 import BeautifulSoup
 
 # Configuration
@@ -21,8 +15,8 @@ DB_NAME = "natacion.db"
 # The Dockerfile VOLUME is /app/data.
 # Let's write to current dir, and user maps $(pwd)/data to /app if they want.
 # Or better: check if /app/data exists, else current.
-DB_PATH = "natacion.db"
-if os.path.exists("/app/data"):
+DB_PATH = "data/natacion.db"
+if os.path.exists("/app/data/natacion.db"):
     DB_PATH = "/app/data/natacion.db"
 
 TEAM_ID = "10034725"
@@ -38,7 +32,8 @@ class SwimcloudCrawler:
         self.conn = sqlite3.connect(db_path)
         self.cursor = self.conn.cursor()
         self.setup_db()
-        self.driver = self.setup_driver()
+        self.session = requests.Session(impersonate="chrome120")
+        self.page_source = ""
 
     def setup_db(self):
         self.cursor.execute('''
@@ -57,7 +52,8 @@ class SwimcloudCrawler:
                 name TEXT,
                 date TEXT,
                 location TEXT,
-                url TEXT
+                url TEXT,
+                pool_size TEXT
             )
         ''')
         self.cursor.execute('''
@@ -87,84 +83,25 @@ class SwimcloudCrawler:
         ''')
         self.conn.commit()
 
-    def setup_driver(self):
-        chrome_options = Options()
-        chrome_options.add_argument("--headless")  # Run headless
-        chrome_options.add_argument("--no-sandbox")
-        chrome_options.add_argument("--disable-dev-shm-usage")
-        chrome_options.add_argument("--window-size=1920,1080")
-        chrome_options.add_argument("user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-        
-        # Check for Docker environment variables
-        chrome_bin = os.environ.get('CHROME_BIN', '/usr/bin/chromium')
-        chromedriver_path = os.environ.get('CHROMEDRIVER_PATH', '/usr/bin/chromedriver')
-        
-        service = None
-        if os.path.exists(chrome_bin) and os.path.exists(chromedriver_path):
-            print("Using system Chromium (Docker environment detected).")
-            chrome_options.binary_location = chrome_bin
-            service = Service(chromedriver_path)
-        else:
-            print("Using WebDriverManager (Local environment detected).")
-            try:
-                service = Service(ChromeDriverManager().install())
-            except Exception as e:
-                print(f"Error setting up local driver: {e}")
-                sys.exit(1)
-
-        driver = webdriver.Chrome(service=service, options=chrome_options)
-        return driver
-
     def get_page(self, url):
         print(f"Navigating to {url}...")
         try:
-            self.driver.get(url)
-            # Basic wait for body
-            WebDriverWait(self.driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
-            time.sleep(random.uniform(1.0, 2.0)) # Random humanity
+            response = self.session.get(url, timeout=15)
+            self.page_source = response.text
+            time.sleep(random.uniform(0.5, 1.0))
             return True
         except Exception as e:
             print(f"Error loading {url}: {e}")
             return False
 
     def scroll_to_bottom(self):
-        """Scrolls to the bottom of the page to trigger infinite scroll loading."""
-        last_height = self.driver.execute_script("return document.body.scrollHeight")
-        while True:
-            self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-            time.sleep(2)  # Wait for load
-            new_height = self.driver.execute_script("return document.body.scrollHeight")
-            if new_height == last_height:
-                break
-            last_height = new_height
-        print("  > Auto-scrolled to bottom.")
+        """No longer needed since curl_cffi loads the page fully via html."""
+        pass
 
 
     def crawl_roster(self, limit=None):
-        if not self.get_page(TEAM_ROSTER_URL):
-            return
-
-        # 1. Select "All Seasons"
-        try:
-            from selenium.webdriver.support.ui import Select
-            wait = WebDriverWait(self.driver, 10)
-            select_elem = wait.until(EC.presence_of_element_located((By.ID, "id_season_id")))
-            select = Select(select_elem)
-            select.select_by_value("") # Empty value usually means "All Seasons" or similar
-            time.sleep(2)
-            print("  > Selected 'All Seasons'")
-        except Exception as e:
-            print(f"  > Warning: Could not select 'All Seasons': {e}")
-
-        # 2. Scrape Men (Default)
-        print("  > Scraping Men's Roster...")
-        self.scroll_to_bottom()
-        
-        soup = BeautifulSoup(self.driver.page_source, 'html.parser')
-        swimmer_links = soup.select('a[href^="/swimmer/"]')
-        
         unique_swimmers = {}
-        
+
         def parse_links(soup_obj):
              links = soup_obj.select('a[href^="/swimmer/"]')
              for link in links:
@@ -178,29 +115,20 @@ class SwimcloudCrawler:
                         'id': swimmer_id
                     }
 
-        parse_links(soup)
-        print(f"  > Found {len(unique_swimmers)} so far.")
+        # 1. Scrape Men
+        print("  > Scraping Men's Roster...")
+        if self.get_page(TEAM_ROSTER_URL + "?gender=M"):
+            soup = BeautifulSoup(self.page_source, 'html.parser')
+            parse_links(soup)
+            print(f"  > Found {len(unique_swimmers)} so far.")
 
-        # 3. Switch to Women
-        try:
-            # Find the label/button for Women. Usually index 1 of .btn-primary labels or similar.
-            # Using specific text might be safer.
-            women_btn = self.driver.find_element(By.XPATH, "//label[contains(text(), 'Women')]")
-            if women_btn:
-                self.driver.execute_script("arguments[0].click();", women_btn)
-                time.sleep(2)
-                print("  > Switched to 'Women' tab.")
-                self.scroll_to_bottom()
-                soup_women = BeautifulSoup(self.driver.page_source, 'html.parser')
-                parse_links(soup_women)
-        except Exception as e:
-             print(f"  > Warning: Could not switch to Women tab: {e}")
+        # 2. Scrape Women
+        print("  > Scraping Women's Roster...")
+        if self.get_page(TEAM_ROSTER_URL + "?gender=F"):
+            soup_women = BeautifulSoup(self.page_source, 'html.parser')
+            parse_links(soup_women)
 
-        
         print(f"Found {len(unique_swimmers)} unique swimmers in TOTAL roster.")
-
-
-        print(f"Found {len(unique_swimmers)} unique swimmers in roster.")
 
         # Add Extra Swimmers
         for extra in EXTRA_SWIMMERS:
@@ -228,15 +156,7 @@ class SwimcloudCrawler:
         if not self.get_page(url):
             return
 
-        # Explicit wait for meets to load
-        try:
-            WebDriverWait(self.driver, 10).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, "h3.c-title"))
-            )
-        except:
-            print(f"  - Warning: Timeout waiting for meets on {url}")
-
-        soup = BeautifulSoup(self.driver.page_source, 'html.parser')
+        soup = BeautifulSoup(self.page_source, 'html.parser')
         
         # Debug
         meet_headers = soup.select('h3.c-title')
@@ -271,7 +191,16 @@ class SwimcloudCrawler:
                     location_text = clean_parts[-1]
                 if len(clean_parts) >= 2:
                     date_text = clean_parts[-2] # Assuming second to last is date
-                    
+                    # Clean Swimcloud range "Dec 5-6, 2025" -> "2025-12-05"
+                    match = re.search(r"([A-Za-z]+)\s+(\d+).*?,\s+(\d{4})", date_text)
+                    if match:
+                        month_str, day_str, year_str = match.groups()
+                        try:
+                            from datetime import datetime
+                            dt = datetime.strptime(f"{month_str} {day_str} {year_str}", "%b %d %Y")
+                            date_text = dt.strftime("%Y-%m-%d")
+                        except:
+                            pass
             # Result Link
             # It should be close by.
             # Look for links containing /results/ inside the same container?
@@ -336,7 +265,7 @@ class SwimcloudCrawler:
 
     def process_meet_results(self, meet_id, swimmer_id, url):
         self.get_page(url)
-        soup = BeautifulSoup(self.driver.page_source, 'html.parser')
+        soup = BeautifulSoup(self.page_source, 'html.parser')
         
         rows = soup.select('table.c-table-clean tbody tr')
         print(f"  > Processing Meet {meet_id}: {len(rows)} events found.")
@@ -437,7 +366,7 @@ class SwimcloudCrawler:
     def get_splits(self, result_id, url):
         # Optimistic check: Assume splits page loads fast
         self.get_page(url)
-        soup = BeautifulSoup(self.driver.page_source, 'html.parser')
+        soup = BeautifulSoup(self.page_source, 'html.parser')
         
         # Look for the splits table
         # There might be multiple tables. Look for one with numeric distance headers (50, 100)
@@ -478,7 +407,7 @@ class SwimcloudCrawler:
             print(f"    + Saved {splits_found} splits.")
 
     def close(self):
-        self.driver.quit()
+        self.session.close()
         self.conn.close()
 
 if __name__ == "__main__":
