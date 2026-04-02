@@ -17,7 +17,7 @@ if not os.path.exists(DB_PATH):
     if os.path.exists(alt_path):
         DB_PATH = alt_path
 
-TEAMS_REGEX = ["penalolen", "peñalolen", "peñalolén", "rama de natacion penalolen", "rama natacion penalolen", "crnp"]
+TEAMS_REGEX = ["penalolen", "peñalolen", "peñalolén", "rama de natacion penalolen", "rama natacion penalolen", "crnp", "penilolen", "peñilolen", "penálolen"]
 
 def get_db_connection():
     return sqlite3.connect(DB_PATH)
@@ -158,6 +158,25 @@ def parse_pdf(pdf_path, meet_id):
         
     return results
 
+def parse_puntajes_pdf(pdf_path):
+    club_place = None
+    teams = sorted(TEAMS_REGEX, key=len, reverse=True)
+    try:
+        with pdfplumber.open(pdf_path) as pdf:
+            for page in pdf.pages:
+                text = page.extract_text()
+                if not text: continue
+                for line in text.split('\n'):
+                    lower_line = line.lower()
+                    if any(t in lower_line for t in teams):
+                        m = re.match(r'^\s*(\d+)', line)
+                        if m:
+                            club_place = m.group(1)
+                            return club_place
+    except Exception as e:
+        print(f"Error parsing Puntajes PDF: {e}")
+    return club_place
+
 def similar(a, b):
     return SequenceMatcher(None, a, b).ratio()
 
@@ -169,8 +188,8 @@ def format_fechida_name(raw):
             return f"{parts[1].strip()} {parts[0].strip()}".title()
     return raw.title()
 
-def sync_results_to_db(results, meet_name, meet_date):
-    if not results: return 0
+def sync_results_to_db(results, meet_name, meet_date, meet_location=None, meet_pool=None, club_place=None):
+    if not results and not club_place: return 0
     
     conn = get_db_connection()
     c = conn.cursor()
@@ -180,10 +199,20 @@ def sync_results_to_db(results, meet_name, meet_date):
     meet_row = c.fetchone()
     if meet_row:
         meet_id = meet_row[0]
+        # Actualizar metadatos del torneo existente si es necesario
+        if meet_date and meet_date != datetime.now().strftime("%Y-%m-%d"):
+            c.execute("UPDATE meets SET date = ? WHERE id = ?", (meet_date, meet_id))
+        if meet_location:
+            c.execute("UPDATE meets SET location = ? WHERE id = ?", (meet_location, meet_id))
+        if meet_pool:
+            c.execute("UPDATE meets SET pool_size = ? WHERE id = ?", (meet_pool, meet_id))
+        if club_place:
+            c.execute("UPDATE meets SET address = ? WHERE id = ?", (str(club_place), meet_id))
     else:
-        meet_id = f"F_{int(time.time())}"
-        c.execute("INSERT INTO meets (id, name, date, pool_size) VALUES (?, ?, ?, ?)",
-                  (meet_id, meet_name, meet_date, '50m')) # we'll update pool_size per result
+        import random
+        meet_id = f"F_{int(time.time())}_{random.randint(100,999)}"
+        c.execute("INSERT INTO meets (id, name, date, location, pool_size, address) VALUES (?, ?, ?, ?, ?, ?)",
+                  (meet_id, meet_name, meet_date, meet_location, meet_pool, str(club_place) if club_place else None))
     
     # Load swimmers for matching (Now including birth_date)
     c.execute("SELECT id, name, birth_date FROM swimmers")
@@ -280,6 +309,40 @@ def scrape_fechida(log_callback=print):
             
             pdf_url = None
             meet_name = f"Campeonato Fechida {c_id}"
+            meet_date = datetime.now().strftime("%Y-%m-%d")
+            meet_location = None
+            meet_pool = None
+            
+            # Extraer Metadatos (Fecha, Lugar, Piscina)
+            try:
+                for tag in csoup.find_all('strong'):
+                    text = tag.get_text(strip=True)
+                    val = tag.next_sibling.strip() if (tag.next_sibling and hasattr(tag.next_sibling, 'strip')) else None
+                    if not val:
+                        parent_text = tag.parent.get_text(strip=True)
+                        val = parent_text.replace(text, "").strip()
+                    if not val: continue
+                    
+                    if "Lugar" in text:
+                        meet_location = val
+                    elif "Fecha" in text:
+                        m = re.search(r'(\d{2})/(\d{2})/(\d{4})', val)
+                        if m:
+                            meet_date = f"{m.group(3)}-{m.group(2)}-{m.group(1)}"
+                    elif "Piscina" in text:
+                        meet_pool = f"{val}m" if val.isdigit() else val
+            except Exception as e:
+                log_callback(f"Error extrayendo metadatos de HTML: {e}")
+                
+            puntajes_pdf_url = None
+            for text_node in csoup.find_all(string=lambda text: text and ('puntaje' in text.lower() or 'consolidado' in text.lower())):
+                row = text_node.find_parent('tr')
+                if row:
+                    a = row.find('a', href=True)
+                    if a:
+                        puntajes_pdf_url = a['href']
+                        break
+                        
             for text_node in csoup.find_all(string=lambda text: text and 'resultados completos' in text.lower()):
                 row = text_node.find_parent('tr')
                 if row:
@@ -291,22 +354,40 @@ def scrape_fechida(log_callback=print):
                             meet_name = clean_name.title()
                         break
                         
-            if pdf_url:
-                log_callback(f"  Encontrado PDF: Descargando...")
-                req = urllib.request.Request(pdf_url, headers={'User-Agent': 'Mozilla/5.0'})
-                pdf_path = f"/tmp/fechida_{c_id}.pdf"
-                
-                with urllib.request.urlopen(req, context=ctx) as response, open(pdf_path, 'wb') as out_file:
-                    out_file.write(response.read())
+            if pdf_url or puntajes_pdf_url:
+                club_place = None
+                if puntajes_pdf_url:
+                    full_p_url = f"https://fechida.cl/{puntajes_pdf_url}" if not puntajes_pdf_url.startswith("http") else puntajes_pdf_url
+                    log_callback(f"  Encontrado Puntajes PDF: Descargando {full_p_url}...")
+                    try:
+                        req_p = urllib.request.Request(full_p_url, headers={'User-Agent': 'Mozilla/5.0'})
+                        p_pdf_path = f"/tmp/fechida_puntaje_{c_id}.pdf"
+                        with urllib.request.urlopen(req_p, context=ctx) as p_resp, open(p_pdf_path, 'wb') as pf:
+                            pf.write(p_resp.read())
+                        club_place = parse_puntajes_pdf(p_pdf_path)
+                        if club_place:
+                            log_callback(f"  Lugar del Club encontrado: {club_place}")
+                    except Exception as e:
+                        log_callback(f"  Error procesando Puntajes PDF: {e}")
+
+                results = []
+                if pdf_url:
+                    full_pdf_url = f"https://fechida.cl/{pdf_url}" if not pdf_url.startswith("http") else pdf_url
+                    log_callback(f"  Encontrado PDF de Resultados: Descargando...")
+                    req = urllib.request.Request(full_pdf_url, headers={'User-Agent': 'Mozilla/5.0'})
+                    pdf_path = f"/tmp/fechida_{c_id}.pdf"
                     
-                log_callback(f"  Parseando PDF para {meet_name}...")
-                results = parse_pdf(pdf_path, meet_name)
+                    with urllib.request.urlopen(req, context=ctx) as response, open(pdf_path, 'wb') as out_file:
+                        out_file.write(response.read())
+                        
+                    log_callback(f"  Parseando PDF para {meet_name}...")
+                    results = parse_pdf(pdf_path, meet_name)
                 
-                if results:
+                if results or club_place:
                     log_callback(f"  Encontrados {len(results)} resultados de Peñalolén. Guardando en DB...")
-                    inserted = sync_results_to_db(results, meet_name, datetime.now().strftime("%Y-%m-%d"))
+                    inserted = sync_results_to_db(results, meet_name, meet_date, meet_location, meet_pool, club_place)
                     log_callback(f"  -> {inserted} registros actualizados/insertados.")
-                    if inserted > 0:
+                    if inserted > 0 or club_place:
                         added_meets.append(meet_name)
                     total_new += inserted
                 else:

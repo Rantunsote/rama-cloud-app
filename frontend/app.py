@@ -10,6 +10,21 @@ import time
 import sys
 import itertools
 
+def map_points(place):
+    try:
+        p = int(place)
+        if p == 1: return 9
+        if p == 2: return 7
+        if p == 3: return 6
+        if p == 4: return 5
+        if p == 5: return 4
+        if p == 6: return 3
+        if p == 7: return 2
+        if p == 8: return 1
+    except:
+        pass
+    return 0
+
 # Configuration
 # Configuration
 import os
@@ -443,7 +458,7 @@ def load_all_results():
     query = """
         SELECT 
             s.id as swimmer_id, s.name, s.birth_date, s.gender,
-            r.event_name, r.time, r.pool_size, r.points,
+            r.event_name, r.time, r.pool_size, r.points, r.place,
             m.date, m.name as meet_name
         FROM results r
         JOIN swimmers s ON r.swimmer_id = s.id
@@ -479,8 +494,18 @@ def compute_cagr_improvement(yearly_best):
     last = yearly_best.iloc[-1]
     if first is None or last is None or first <= 0 or last <= 0:
         return None
-    years = len(yearly_best) - 1
+    
+    # Calculate chronological years passed
+    year_first = yearly_best.index[0]
+    year_last = yearly_best.index[-1]
+    years = year_last - year_first
+    
+    if years <= 0:
+        return None
+        
     try:
+        # standard CAGR: (EV/BV)^(1/n) - 1. But since a lower time is better,
+        # we calculate the rate of decay: rate = 1 - (last / first)^(1/n)
         rate = 1 - (last / first) ** (1 / years)
         return rate * 100
     except:
@@ -608,6 +633,17 @@ def update_meet_info(meet_id, new_name, new_date):
         conn.commit()
     except Exception as e:
         st.error(f"Error updating meet info: {e}")
+    finally:
+        conn.close()
+
+def update_meet_address(meet_id, new_address):
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE meets SET address = ? WHERE id = ?", (new_address, meet_id))
+        conn.commit()
+    except Exception as e:
+        st.error(f"Error updating meet address: {e}")
     finally:
         conn.close()
 
@@ -1279,14 +1315,14 @@ def render_team_view(swimmers_df):
         
     st.markdown("---")
     
-    tab_list = ["🏠 Inicio", "🏊 Plantel", "🏆 Torneos", "📊 Análisis", "📈 Estadisticas", "🏅 Clasificados", "🏊 Relevos"]
+    tab_list = ["🏠 Inicio", "🏊 Plantel", "🏆 Torneos", "🥇 Puntajes", "📊 Análisis", "📈 Estadisticas", "🏅 Clasificados", "🏊 Relevos"]
     is_admin = st.session_state.get("logged_user") == "admin"
     if is_admin:
         tab_list.append("📝 Ingreso")
         
     tabs = st.tabs(tab_list)
-    t_home, t_roster, t_meets, t_analysis, t_stats, t_qualifiers, t_relays = tabs[0], tabs[1], tabs[2], tabs[3], tabs[4], tabs[5], tabs[6]
-    t_ingreso = tabs[7] if is_admin else None
+    t_home, t_roster, t_meets, t_scores, t_analysis, t_stats, t_qualifiers, t_relays = tabs[0], tabs[1], tabs[2], tabs[3], tabs[4], tabs[5], tabs[6], tabs[7]
+    t_ingreso = tabs[8] if is_admin else None
     
     with t_home:
         c1, c2, c3 = st.columns(3)
@@ -1355,7 +1391,7 @@ def render_team_view(swimmers_df):
             "name": "Nombre",
             "date": "Fecha",
             "location": "Ciudad",
-            "address": "Dirección",
+            "address": "Lugar Club",
             "pool_size": st.column_config.SelectboxColumn(
                 "Piscina",
                 options=["25m", "50m"],
@@ -1367,7 +1403,7 @@ def render_team_view(swimmers_df):
         edited_df = st.data_editor(
             editor_df,
             column_config=column_cfg,
-            disabled=["location", "address"], # Allowed name, date, pool_size
+            disabled=["location"], # Allowed name, date, pool_size, address
             use_container_width=True,
             hide_index=True,
             key="meets_editor"
@@ -1387,6 +1423,9 @@ def render_team_view(swimmers_df):
                 if old_row['name'] != new_row['name'] or old_row['date'] != new_row['date']:
                     update_meet_info(m_id, new_row['name'], new_row['date'])
                     changed.append("Info")
+                if old_row['address'] != new_row['address']:
+                    update_meet_address(m_id, new_row['address'])
+                    changed.append("Posición")
                     
                 if changed:
                     st.toast(f"Torneo actualizado!", icon="✅")
@@ -1492,7 +1531,7 @@ def render_team_view(swimmers_df):
                             "Suma 4x50": format_seconds(sum_50s),
                             "200 IM": format_seconds(t_im),
                             "Delta (IM - sum)": f"{delta:.2f}s",
-                            "Delta %": f"{(delta / t_im) * 100:.2f}%",
+                            "Delta %": f"{(delta / sum_50s) * 100:.2f}%",
                         })
                 if im_rows:
                     st.dataframe(pd.DataFrame(im_rows), use_container_width=True, hide_index=True)
@@ -1519,17 +1558,53 @@ def render_team_view(swimmers_df):
     with t_relays:
         render_relay_builder()
         
+    with t_scores:
+        st.subheader("🥇 Ranking de Puntajes por Nadador")
+        st.markdown("Tabla calculada automáticamente por el sistema basándose en la posición (`Lugar`) final. \n *(1º=9pts, 2º=7pts, 3º=6pts, 4º=5pts, 5º=4pts, 6º=3pts, 7º=2pts, 8º=1pt)*")
+        
+        all_res = load_all_results()
+        if all_res.empty:
+            st.info("No hay resultados registrados.")
+        else:
+            # Calcular puntos para cada resultado
+            all_res['puntos_calc'] = all_res['place'].apply(map_points)
+            
+            # Obtener lista de torneos ordenados de más reciente a más antiguo
+            meets_ordered = all_res.drop_duplicates('meet_name').sort_values('date_obj', ascending=False)['meet_name'].tolist()
+            meets_ordered = [m for m in meets_ordered if pd.notna(m)]
+            
+            sel_meet = st.selectbox("🏆 Seleccionar Competencia", meets_ordered, key="scores_meet_filter")
+            
+            df_filtered = all_res[all_res['meet_name'] == sel_meet]
+            
+            # Agrupar por nadador
+            ranking = df_filtered.groupby(['name', 'gender'])['puntos_calc'].sum().reset_index()
+            ranking = ranking[ranking['puntos_calc'] > 0].sort_values('puntos_calc', ascending=False)
+            
+            if ranking.empty:
+                st.warning("No hay nadadores con puntos (1º a 8º lugar) en esta selección.")
+            else:
+                total_team = ranking['puntos_calc'].sum()
+                st.metric(f"Total Peñalolén ({sel_meet})", int(total_team))
+                
+                # Tabular presentation
+                ranking = ranking.reset_index(drop=True)
+                ranking.index += 1
+                ranking.rename(columns={'name': 'Nadador', 'gender': 'Género', 'puntos_calc': 'Puntos Aportados'}, inplace=True)
+                
+                st.dataframe(ranking, use_container_width=True)
+        
     if is_admin and t_ingreso:
         with t_ingreso:
             st.subheader("📝 Ingreso y Actualización de Datos")
             
-            t_dob, t_fechida, t_logs, t_other = st.tabs(["Actualizar Cumpleaños (Masivo)", "Sincronizar Fechida", "Registros de Acceso", "Otros"])
+            t_dob, t_fechida, t_logs, t_other = st.tabs(["Actualizar Cumpleaños (Masivo)", "Sincronizar Global", "Registros de Acceso", "Otros"])
             
             with t_fechida:
-                st.markdown("### Sincronización Automática con Fechida")
-                st.info("Esta acción buscará nuevos resultados completos en la página de Fechida y actualizará la base de datos local para los nadadores de Peñalolén.")
-                if st.button("Sincronizar Resultados Oficiales", type="primary"):
-                    with st.spinner("Conectando con Fechida y procesando PDFs... Esto puede tomar unos minutos."):
+                st.markdown("### Sincronización Automática Global")
+                st.info("Esta acción buscará nuevos resultados en la página oficial de Fechida, luego escaneará la plataforma internacional Swimcloud buscando competencias faltantes del plantel, y finalmente correrá el algoritmo deduplicador inteligente.")
+                if st.button("Sincronizar", type="primary"):
+                    with st.spinner("Conectando con Fechida y procesando PDFs..."):
                         try:
                             root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
                             if root_dir not in sys.path:
@@ -1542,25 +1617,55 @@ def render_team_view(swimmers_df):
                                     self.logs.append(msg)
                                     print(msg)
                             
-                            import scraper_fechida_pdf
                             logger = LogCapture()
-                            resultado = scraper_fechida_pdf.scrape_fechida(log_callback=logger)
                             
-                            nuevos = resultado.get("total_new", 0)
-                            added_meets = resultado.get("added_meets", [])
-                            last_meet = resultado.get("last_meet", "Ninguna")
+                            import scraper_fechida_pdf
+                            import importlib
+                            importlib.reload(scraper_fechida_pdf)
+                            resultado_f = scraper_fechida_pdf.scrape_fechida(log_callback=logger)
                             
-                            if nuevos > 0:
-                                st.success(f"¡Sincronización Completada! Se integraron {nuevos} resultados.")
-                                if added_meets:
-                                    st.write(f"Competencias agregadas: **{', '.join(added_meets)}**")
-                            else:
-                                st.info(f"No hay nuevas competencias. La última agregada fue: **{last_meet}**")
+                            # 2. Swimcloud Sync via Subprocess
+                            logger("\\n🕒 Iniciando recolección internacional en Swimcloud (aislado)...")
+                            import subprocess
+                            try:
+                                # Run main_swimcloud as isolated process to avoid Streamlit cache, using the verified venv
+                                proc = subprocess.run(
+                                    [sys.executable, "main_swimcloud.py"],
+                                    cwd=root_dir,
+                                    capture_output=True,
+                                    text=True,
+                                    check=True
+                                )
+                                logger("✅ Escaneo de Swimcloud finalizado satisfactoriamente.")
+                                # Add the subprocess output to logs for debugging (last 1500 chars)
+                                if proc.stdout:
+                                    logger(f"(Log Swimcloud:\\n{proc.stdout[-1500:]})")
+                            except subprocess.CalledProcessError as e:
+                                logger(f"❌ Error en Swimcloud Sync:\\n{e.stderr[-1000:] if e.stderr else 'Error desconocido'}")
+                                raise Exception(f"Swimcloud Scraper Error: {e}")
                             
-                            with st.expander("Ver bitácora de sincronización"):
+                            # 3. Deduplicador Inteligente
+                            logger("\\n🧹 Ejecutando Deduplicación Inteligente de Base de Datos...")
+                            import auto_deduplicate
+                            import importlib
+                            importlib.reload(auto_deduplicate)
+                            resultado_d = auto_deduplicate.run_deduplicator()
+                            logger(f"✅ Deduplicación lista: {resultado_d.get('meets_merged')} torneos fusionados y {resultado_d.get('results_deleted')} tiempos idénticos purgados.")
+                            
+                            nuevos = resultado_f.get("total_new", 0)
+                            added_meets = resultado_f.get("added_meets", [])
+                            
+                            st.success(f"¡Sincronización Total Completada!")
+                            if added_meets:
+                                st.write(f"- Competencias Fechida agregadas: **{', '.join(added_meets)}**")
+                            st.write(f"- Competencias consolidadas: **{resultado_d.get('meets_merged')}**")
+                            
+                            with st.expander("Ver bitácora de sincronización global"):
                                 st.text('\\n'.join(logger.logs))
                         except Exception as e:
-                            st.error(f"Error durante la sincronización: {e}")
+                            import traceback
+                            st.error("Error crítico detallado:")
+                            st.code(traceback.format_exc())
 
             with t_dob:
                 st.markdown("""
@@ -1616,7 +1721,22 @@ def render_team_view(swimmers_df):
                         finally: conn.close()
 
             with t_other:
-                st.info("Futuras herramientas de ingreso aquí.")
+                st.markdown("### Mantenimiento de Base de Datos")
+                st.info("Esta acción escanea toda la base de datos buscando resultados duplicados donde el nadador, la prueba y el tiempo sean idénticos, para luego fusionar los torneos redundantes (priorizando los nombres oficiales de Fechida).")
+                if st.button("🧹 Deduplicar Torneos y Resultados", type="primary"):
+                    with st.spinner("Analizando entropía en la tabla de resultados..."):
+                        try:
+                            import auto_deduplicate
+                            result = auto_deduplicate.run_deduplicator()
+                            
+                            st.success(f"¡Limpieza finalizada!")
+                            st.write(f"- Torneos redundantes fusionados: **{result.get('meets_merged', 0)}**")
+                            st.write(f"- Filas duplicadas idénticas eliminadas: **{result.get('results_deleted', 0)}**")
+                            
+                            time.sleep(2)
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error durante la limpieza: {e}")
 
 def render_profile_view(swimmer_id, swimmers_df):
     # Get Swimmer Data
