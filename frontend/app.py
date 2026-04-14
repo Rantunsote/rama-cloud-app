@@ -1315,14 +1315,14 @@ def render_team_view(swimmers_df):
         
     st.markdown("---")
     
-    tab_list = ["🏠 Inicio", "🏊 Plantel", "🏆 Torneos", "🥇 Puntajes", "📊 Análisis", "📈 Estadisticas", "🏅 Clasificados", "🏊 Relevos"]
+    tab_list = ["🏠 Inicio", "🏊 Plantel", "🏆 Torneos", "🥇 Puntajes", "📊 Análisis", "📈 Estadisticas", "🏅 Clasificados", "🏊 Relevos", "👥 Comparación"]
     is_admin = st.session_state.get("logged_user") == "admin"
     if is_admin:
         tab_list.append("📝 Ingreso")
         
     tabs = st.tabs(tab_list)
-    t_home, t_roster, t_meets, t_scores, t_analysis, t_stats, t_qualifiers, t_relays = tabs[0], tabs[1], tabs[2], tabs[3], tabs[4], tabs[5], tabs[6], tabs[7]
-    t_ingreso = tabs[8] if is_admin else None
+    t_home, t_roster, t_meets, t_scores, t_analysis, t_stats, t_qualifiers, t_relays, t_compare = tabs[0], tabs[1], tabs[2], tabs[3], tabs[4], tabs[5], tabs[6], tabs[7], tabs[8]
+    t_ingreso = tabs[9] if is_admin else None
     
     with t_home:
         c1, c2, c3 = st.columns(3)
@@ -1557,6 +1557,9 @@ def render_team_view(swimmers_df):
         
     with t_relays:
         render_relay_builder()
+        
+    with t_compare:
+        render_comparison_tab(swimmers_df)
         
     with t_scores:
         st.subheader("🥇 Ranking de Puntajes por Nadador")
@@ -2139,6 +2142,104 @@ def show_login_form(callback, error=None):
         
         if error:
             st.markdown(f'<p style="color: #ff4b4b; margin-top: 10px; background: rgba(0,0,0,0.5); padding: 5px; border-radius: 5px;">{error}</p>', unsafe_allow_html=True)
+
+# --- HEAD TO HEAD COMPARISON ---
+def render_comparison_tab(swimmers_df):
+    st.subheader("👥 Comparación Analítica Head-to-Head")
+    st.markdown("Selecciona entre 2 a 10 nadadores para comparar sus mejores tiempos en una prueba específica.")
+    
+    names = swimmers_df['name'].dropna().sort_values().tolist()
+    selected_names = st.multiselect("Seleccionar Nadadores", names, max_selections=10)
+    
+    if len(selected_names) < 2:
+        st.info("💡 Selecciona al menos 2 nadadores para realizar una comparación.")
+        return
+        
+    c1, c2 = st.columns(2)
+    
+    all_res = load_all_results()
+    if all_res.empty:
+        st.warning("No hay resultados registrados en el sistema.")
+        return
+        
+    df_filtered = all_res[all_res['name'].isin(selected_names)].copy()
+    if df_filtered.empty:
+        st.warning("Los nadadores seleccionados no tienen resultados históricos.")
+        return
+        
+    available_events = [e for e in df_filtered['event_display'].dropna().unique() if isinstance(e, str)]
+    available_events.sort()
+    
+    selected_event = c1.selectbox("Seleccionar Prueba", available_events)
+    available_pools = df_filtered[df_filtered['event_display'] == selected_event]['pool_size'].dropna().unique().tolist()
+    available_pools.sort(reverse=True) # Defaults to 50m if available, otherwise 25m
+    if not available_pools: available_pools = ["25m", "50m"]
+    
+    pool = c2.selectbox("Piscina", available_pools)
+    
+    df_comp = df_filtered[(df_filtered['event_display'] == selected_event) & (df_filtered['pool_size'] == pool)].copy()
+    
+    missing_names = [n for n in selected_names if n not in df_comp['name'].values]
+    if missing_names:
+        st.info(f"💡 **Sin registros en {selected_event} ({pool}):** {', '.join(missing_names)}")
+    
+    if df_comp.empty:
+        st.warning(f"No hay registros en {selected_event} ({pool}) para los nadadores seleccionados.")
+        return
+        
+    # --- Mejor Marca ---
+    st.markdown("### 🏆 Mejores Tiempos (Récords Personales)")
+    
+    best_times = df_comp.groupby('name')['seconds'].min().reset_index()
+    
+    # Agregar filas vacías para que los nombres faltantes aparezcan en el eje X
+    for n in missing_names:
+        empty_row = pd.DataFrame({'name': [n], 'seconds': [None]})
+        best_times = pd.concat([best_times, empty_row], ignore_index=True)
+        
+    best_times = best_times.sort_values(by=['seconds', 'name'], na_position='last')
+    best_times['time_fmt'] = best_times['seconds'].apply(lambda x: format_seconds(x) if pd.notna(x) else "Sin Registro")
+    
+    fig_bar = px.bar(
+        best_times,
+        x='name',
+        y='seconds',
+        color='name',
+        text='time_fmt',
+        title=f"Mejor Marca Histórica - {selected_event} ({pool})",
+        labels={'seconds': 'Tiempo Promedio (Segundos)', 'name': 'Nadador'}
+    )
+    fig_bar.update_layout(showlegend=False)
+    
+    # Improve visibility by cutting the y-axis
+    min_time = best_times['seconds'].min()
+    max_time = best_times['seconds'].max()
+    padding = (max_time - min_time) * 0.2
+    if padding == 0: padding = 5
+    fig_bar.update_yaxes(range=[max(0, min_time - padding), max_time + padding])
+    fig_bar.update_traces(textposition='outside')
+    
+    st.plotly_chart(fig_bar, use_container_width=True)
+    
+    # --- Evolución Histórica ---
+    st.markdown("### 📈 Evolución Histórica de Tiempos")
+    
+    df_comp['date_obj'] = pd.to_datetime(df_comp['date_clean'], errors='coerce')
+    df_comp = df_comp.dropna(subset=['date_obj']).sort_values('date_obj')
+    df_comp['time_fmt'] = df_comp['seconds'].apply(format_seconds)
+    
+    if not df_comp.empty:
+        fig_line = px.line(
+            df_comp,
+            x='date_obj',
+            y='seconds',
+            color='name',
+            markers=True,
+            title=f"Progresión en {selected_event} ({pool})",
+            labels={'seconds': 'Tiempo (Segundos)', 'date_obj': 'Fecha', 'name': 'Nadador'},
+            hover_data={'time_fmt': True, 'seconds': False, 'meet_name': True}
+        )
+        st.plotly_chart(fig_line, use_container_width=True)
 
 # --- RELAY BUILDER ---
 def render_relay_builder():
