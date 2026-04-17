@@ -808,15 +808,15 @@ def render_analysis_tab(swimmers_df):
     c1, c2, c3, c4 = st.columns(4)
     
     # 1. Gender
-    gender = c1.selectbox("Género", ["M", "F"], index=0)
+    gender = c1.selectbox("Género", ["Ambos (M y F)", "M", "F"], index=0)
     
     # 2. Pool (REMOVED as per request)
     # pool = c2.selectbox("Piscina", ["25m", "50m"], index=0)
     
     # 3. Category
     # Map friendly names to min-max ages
-    # Map friendly names to min-max ages
     cat_map = {}
+    cat_map["Todas las edades"] = (0, 99, "Todas")
     # Individual ages 8 to 14
     for age_n in range(8, 15):
         # DB uses "11-11" for individual ages
@@ -826,7 +826,7 @@ def render_analysis_tab(swimmers_df):
     cat_map["15-17 años"] = (15, 17, "15-17")
     cat_map["18-99 años"] = (18, 99, "18-99")
     
-    cat_label = c3.selectbox("Categoría", list(cat_map.keys()), index=2) # Default Juvenil A
+    cat_label = c3.selectbox("Categoría", list(cat_map.keys()), index=0) # Default Todas las edades
     cat_min, cat_max, cat_code = cat_map[cat_label]
     
     # --- Filter Swimmers ---
@@ -845,7 +845,7 @@ def render_analysis_tab(swimmers_df):
     
     # We need to filter the dataframe
     # Normalize gender input
-    g_target = gender # 'M' or 'F'
+    g_target = gender # 'Ambos (M y F)', 'M' or 'F'
     
     for _, s in swimmers_df.iterrows():
         # Check Gender
@@ -856,7 +856,7 @@ def render_analysis_tab(swimmers_df):
         if s_gen.startswith('M'): s_gen = 'M'
         if s_gen.startswith('F'): s_gen = 'F'
         
-        if s_gen != g_target: continue
+        if g_target != "Ambos (M y F)" and s_gen != g_target: continue
         
         # Check Age
         age = get_age(s.get('birth_date'))
