@@ -892,25 +892,22 @@ def render_analysis_tab(swimmers_df):
         
     # 4. Event Selector - Using User Preferred List
     PREFERRED_EVENT_ORDER = {
-        "🏊 Estilo Libre (Crol)": [
-            "50 metros Libre", "100 metros Libre", "200 metros Libre", 
-            "400 metros Libre", "800 metros Libre", "1500 metros Libre"
+        "📏 50 metros": [
+            "50 metros Libre", "50 metros Mariposa", "50 metros Espalda", "50 metros Pecho"
         ],
-        "🏊 Estilo Espalda": [
-            "50 metros Espalda", "100 metros Espalda", "200 metros Espalda"
+        "📏 100 metros": [
+            "100 metros Libre", "100 metros Mariposa", "100 metros Espalda", "100 metros Pecho", "100 metros Combinado (Solo en piscina corta 25m)"
         ],
-        "🏊 Estilo Pecho (Braza)": [
-            "50 metros Pecho", "100 metros Pecho", "200 metros Pecho"
+        "📏 200 metros": [
+            "200 metros Libre", "200 metros Mariposa", "200 metros Espalda", "200 metros Pecho", "200 metros Combinado"
         ],
-        "🏊 Estilo Mariposa": [
-            "50 metros Mariposa", "100 metros Mariposa", "200 metros Mariposa"
-        ],
-        "🏊 Estilo Combinado (Medley)": [
-            "100 metros Combinado (Solo en piscina corta 25m)", "200 metros Combinado", "400 metros Combinado"
+        "📏 400+ metros": [
+            "400 metros Libre", "400 metros Combinado", "800 metros Libre", "1500 metros Libre"
         ],
         "🏊 Relevos": [
-            "4 x 50 metros Libre", "4 x 100 metros Libre", "4 x 200 metros Libre",
-            "4 x 50 metros Combinado", "4 x 100 metros Combinado", "4 x 100 metros Mixto (Libre o Combinado)"
+            "4 x 50 metros Libre", "4 x 50 metros Combinado", 
+            "4 x 100 metros Libre", "4 x 100 metros Combinado", "4 x 100 metros Mixto (Libre o Combinado)",
+            "4 x 200 metros Libre"
         ]
     }
 
