@@ -307,8 +307,12 @@ def scrape_fechida(log_callback=print):
             chtml = urllib.request.urlopen(full_url, context=ctx).read()
             csoup = BeautifulSoup(chtml, 'html.parser')
             
-            pdf_url = None
+            pdf_urls = []
             meet_name = f"Campeonato Fechida {c_id}"
+            title_tag = csoup.find(class_='post__title')
+            if title_tag:
+                meet_name = title_tag.get_text(strip=True).title()
+            
             meet_date = datetime.now().strftime("%Y-%m-%d")
             meet_location = None
             meet_pool = None
@@ -343,18 +347,14 @@ def scrape_fechida(log_callback=print):
                         puntajes_pdf_url = a['href']
                         break
                         
-            for text_node in csoup.find_all(string=lambda text: text and 'resultados completos' in text.lower()):
+            for text_node in csoup.find_all(string=lambda text: text and 'resultados' in text.lower() and 'sembrados' not in text.lower()):
                 row = text_node.find_parent('tr')
                 if row:
                     a = row.find('a', href=True)
-                    if a:
-                        pdf_url = a['href']
-                        clean_name = text_node.strip().replace('.pdf', '')
-                        if len(clean_name) > 5:
-                            meet_name = clean_name.title()
-                        break
+                    if a and a['href'] not in [u['url'] for u in pdf_urls]:
+                        pdf_urls.append({'url': a['href'], 'name': text_node.strip()})
                         
-            if pdf_url or puntajes_pdf_url:
+            if pdf_urls or puntajes_pdf_url:
                 club_place = None
                 if puntajes_pdf_url:
                     full_p_url = f"https://fechida.cl/{puntajes_pdf_url}" if not puntajes_pdf_url.startswith("http") else puntajes_pdf_url
@@ -371,17 +371,21 @@ def scrape_fechida(log_callback=print):
                         log_callback(f"  Error procesando Puntajes PDF: {e}")
 
                 results = []
-                if pdf_url:
-                    full_pdf_url = f"https://fechida.cl/{pdf_url}" if not pdf_url.startswith("http") else pdf_url
-                    log_callback(f"  Encontrado PDF de Resultados: Descargando...")
+                for p_idx, p_data in enumerate(pdf_urls):
+                    p_url = p_data['url']
+                    full_pdf_url = f"https://fechida.cl/{p_url}" if not p_url.startswith("http") else p_url
+                    log_callback(f"  Encontrado PDF de Resultados '{p_data['name']}': Descargando...")
                     req = urllib.request.Request(full_pdf_url, headers={'User-Agent': 'Mozilla/5.0'})
-                    pdf_path = f"/tmp/fechida_{c_id}.pdf"
+                    pdf_path = f"/tmp/fechida_{c_id}_{p_idx}.pdf"
                     
-                    with urllib.request.urlopen(req, context=ctx) as response, open(pdf_path, 'wb') as out_file:
-                        out_file.write(response.read())
-                        
-                    log_callback(f"  Parseando PDF para {meet_name}...")
-                    results = parse_pdf(pdf_path, meet_name)
+                    try:
+                        with urllib.request.urlopen(req, context=ctx) as response, open(pdf_path, 'wb') as out_file:
+                            out_file.write(response.read())
+                        log_callback(f"  Parseando PDF...")
+                        pdf_results = parse_pdf(pdf_path, meet_name)
+                        results.extend(pdf_results)
+                    except Exception as e:
+                        log_callback(f"  Error procesando {p_data['name']}: {e}")
                 
                 if results or club_place:
                     log_callback(f"  Encontrados {len(results)} resultados de Peñalolén. Guardando en DB...")
@@ -397,7 +401,7 @@ def scrape_fechida(log_callback=print):
                 mark_as_scraped(c_id)
             else:
                 # No complete results yet, don't mark as scraped so we can check later
-                log_callback("  Aún no publican 'Resultados Completos'.")
+                log_callback("  Aún no publican PDFs de 'Resultados'.")
                 
         except Exception as e:
             log_callback(f"Error procesando {l}: {e}")
