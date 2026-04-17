@@ -1644,8 +1644,9 @@ def render_team_view(swimmers_df):
                                 if proc.stdout:
                                     logger(f"(Log Swimcloud:\\n{proc.stdout[-1500:]})")
                             except subprocess.CalledProcessError as e:
-                                logger(f"❌ Error en Swimcloud Sync:\\n{e.stderr[-1000:] if e.stderr else 'Error desconocido'}")
-                                raise Exception(f"Swimcloud Scraper Error: {e}")
+                                err_msg = e.stderr[-1000:] if e.stderr else 'Error desconocido'
+                                logger(f"❌ Error en Swimcloud Sync:\\n{err_msg}")
+                                raise Exception(f"Swimcloud Scraper Error:\\n{err_msg}")
                             
                             # 3. Deduplicador Inteligente
                             logger("\\n🧹 Ejecutando Deduplicación Inteligente de Base de Datos...")
