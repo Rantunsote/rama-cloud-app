@@ -1,5 +1,6 @@
 import sqlite3
 import urllib.request
+import socket
 from bs4 import BeautifulSoup
 import ssl
 import re
@@ -9,6 +10,8 @@ import pandas as pd
 from difflib import SequenceMatcher
 from datetime import datetime
 import time
+
+socket.setdefaulttimeout(30)
 
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data/natacion.db")
 if not os.path.exists(DB_PATH):
