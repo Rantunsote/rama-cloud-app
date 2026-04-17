@@ -3,6 +3,7 @@ import pandas as pd
 import os
 
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "natacion.db")
+DB_PATH = os.environ.get("RAMA_DB_PATH", DB_PATH)
 
 def run_deduplicator():
     print(f"Abriendo DB para deduplicacion: {DB_PATH}")

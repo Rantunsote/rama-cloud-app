@@ -20,6 +20,9 @@ if not os.path.exists(DB_PATH):
     if os.path.exists(alt_path):
         DB_PATH = alt_path
 
+DB_PATH = os.environ.get("RAMA_DB_PATH", DB_PATH)
+
+
 TEAMS_REGEX = ["penalolen", "peñalolen", "peñalolén", "rama de natacion penalolen", "rama natacion penalolen", "crnp", "penilolen", "peñilolen", "penálolen"]
 
 def get_db_connection():

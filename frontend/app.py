@@ -35,6 +35,25 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 # So we need to go up from frontend to swim_scraper, then into data.
 ROOT_DIR = os.path.dirname(BASE_DIR)
 DB_PATH = os.path.join(ROOT_DIR, "data", "natacion.db")
+
+# Streamlit Cloud mounts /mount/src as read-only.
+# We must copy the database to a writable location (/tmp) if we want to sync/edit it.
+import tempfile
+import shutil
+_db_dir = os.path.dirname(DB_PATH)
+if not os.access(_db_dir, os.W_OK) or not os.access(DB_PATH, os.W_OK):
+    writable_db = os.path.join(tempfile.gettempdir(), "natacion_writable.db")
+    # Copy if it doesn't exist or if the original is newer (re-deployed)
+    if not os.path.exists(writable_db) or os.path.getmtime(DB_PATH) > os.path.getmtime(writable_db):
+        try:
+            shutil.copy2(DB_PATH, writable_db)
+        except Exception as e:
+            print(f"Warning: Could not copy DB to writable location: {e}")
+    DB_PATH = writable_db
+
+# Export for subprocesses (main_swimcloud.py, etc.)
+os.environ["RAMA_DB_PATH"] = DB_PATH
+
 TEAM_ID = "10034725" # Rama Peñalolén
 
 st.set_page_config(page_title="RamaCloud", page_icon="🏊", layout="wide", initial_sidebar_state="collapsed")

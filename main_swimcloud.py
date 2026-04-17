@@ -18,6 +18,7 @@ DB_NAME = "natacion.db"
 DB_PATH = "data/natacion.db"
 if os.path.exists("/app/data/natacion.db"):
     DB_PATH = "/app/data/natacion.db"
+DB_PATH = os.environ.get("RAMA_DB_PATH", DB_PATH)
 
 TEAM_ID = "10034725"
 BASE_URL = "https://www.swimcloud.com"
