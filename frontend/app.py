@@ -139,6 +139,28 @@ EVENT_ES_TO_DB_MULTI = {
     "4 x 50 metros Libre": ["200 Free Relay", "4x50 Free Relay"],
 }
 
+PREFERRED_EVENT_ORDER = {
+    "📏 50 metros": [
+        "50 metros Mariposa", "50 metros Espalda", "50 metros Pecho", "50 metros Libre"
+    ],
+    "📏 100 metros": [
+        "100 metros Mariposa", "100 metros Espalda", "100 metros Pecho", "100 metros Libre", "100 metros Combinado (Solo en piscina corta 25m)"
+    ],
+    "📏 200 metros": [
+        "200 metros Mariposa", "200 metros Espalda", "200 metros Pecho", "200 metros Libre", "200 metros Combinado"
+    ],
+    "📏 400+ metros": [
+        "400 metros Combinado", "400 metros Libre", "800 metros Libre", "1500 metros Libre"
+    ],
+    "🏊 Relevos": [
+        "4 x 50 metros Combinado", "4 x 50 metros Libre", 
+        "4 x 100 metros Combinado", "4 x 100 metros Libre", "4 x 100 metros Mixto (Libre o Combinado)",
+        "4 x 200 metros Libre"
+    ]
+}
+
+ORDERED_EVENTS_LIST = [item for sublist in PREFERRED_EVENT_ORDER.values() for item in sublist]
+
 def get_event_display_name(event_name):
     if not isinstance(event_name, str):
         return event_name
@@ -891,36 +913,7 @@ def render_analysis_tab(swimmers_df):
         return
         
     # 4. Event Selector - Using User Preferred List
-    PREFERRED_EVENT_ORDER = {
-        "📏 50 metros": [
-            "50 metros Mariposa", "50 metros Espalda", "50 metros Pecho", "50 metros Libre"
-        ],
-        "📏 100 metros": [
-            "100 metros Mariposa", "100 metros Espalda", "100 metros Pecho", "100 metros Libre", "100 metros Combinado (Solo en piscina corta 25m)"
-        ],
-        "📏 200 metros": [
-            "200 metros Mariposa", "200 metros Espalda", "200 metros Pecho", "200 metros Libre", "200 metros Combinado"
-        ],
-        "📏 400+ metros": [
-            "400 metros Combinado", "400 metros Libre", "800 metros Libre", "1500 metros Libre"
-        ],
-        "🏊 Relevos": [
-            "4 x 50 metros Combinado", "4 x 50 metros Libre", 
-            "4 x 100 metros Combinado", "4 x 100 metros Libre", "4 x 100 metros Mixto (Libre o Combinado)",
-            "4 x 200 metros Libre"
-        ]
-    }
-
-    # Flatten list for selectbox
-    display_list = []
-    for group, items in PREFERRED_EVENT_ORDER.items():
-        # Optional: Add group headers if Streamlit supported them in selectbox, but it doesn't really.
-        # We will just list them.
-        for item in items:
-            # Filter 100 IM if not 25m? 
-            # if item == "100 metros Combinado (Solo en piscina corta 25m)" and pool == "50m":
-            #     continue 
-            display_list.append(item)
+    display_list = ORDERED_EVENTS_LIST
     
     selected_event_display = c4.selectbox("Prueba", display_list)
     
@@ -1870,7 +1863,7 @@ def render_profile_view(swimmer_id, swimmers_df):
          if graph_data.empty:
              st.info("No hay datos suficientes para graficar.")
          else:
-             unique_events = sorted(graph_data['event_display'].unique())
+             unique_events = sorted(graph_data['event_display'].unique(), key=lambda x: ORDERED_EVENTS_LIST.index(x) if x in ORDERED_EVENTS_LIST else 999)
              evt_display = st.selectbox("Seleccionar Prueba", unique_events)
          
              db_event_names = resolve_db_event_names(evt_display)
@@ -2185,7 +2178,7 @@ def render_comparison_tab(swimmers_df):
         return
         
     available_events = [e for e in df_filtered['event_display'].dropna().unique() if isinstance(e, str)]
-    available_events.sort()
+    available_events.sort(key=lambda x: ORDERED_EVENTS_LIST.index(x) if x in ORDERED_EVENTS_LIST else 999)
     
     selected_event = c1.selectbox("Seleccionar Prueba", available_events)
     available_pools = df_filtered[df_filtered['event_display'] == selected_event]['pool_size'].dropna().unique().tolist()
