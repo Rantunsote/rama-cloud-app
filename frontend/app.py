@@ -826,7 +826,7 @@ def render_analysis_tab(swimmers_df):
     cat_map["15-17 años"] = (15, 17, "15-17")
     cat_map["18-99 años"] = (18, 99, "18-99")
     
-    cat_label = c3.selectbox("Categoría", list(cat_map.keys()), index=0) # Default Todas las edades
+    cat_label = c3.selectbox("Categoría", list(cat_map.keys()), index=3) # Default 10 años
     cat_min, cat_max, cat_code = cat_map[cat_label]
     
     # --- Filter Swimmers ---
