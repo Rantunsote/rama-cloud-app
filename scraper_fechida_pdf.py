@@ -66,7 +66,7 @@ def map_event_name(raw_event_line):
     # Example: "Event 1 Girls 9 Year Olds 100 LC Meter Butterfly"
     
     # 1. Distance
-    dist_match = re.search(r'\b(25|50|100|200|400|800|1500)\b', raw_event_line)
+    dist_match = re.search(r'\b(25|50|100|200|400|800|1500|2000|3000|5000)\b', raw_event_line)
     distance = dist_match.group(1) if dist_match else None
     
     # 2. Style

@@ -71,6 +71,7 @@ EVENT_DB_TO_ES = {
     "400 Free": "400 metros Libre",
     "800 Free": "800 metros Libre",
     "1500 Free": "1500 metros Libre",
+    "2000 Free": "2000 metros Libre",
     "50 Back": "50 metros Espalda",
     "100 Back": "100 metros Espalda",
     "200 Back": "200 metros Espalda",
@@ -107,6 +108,7 @@ EVENT_ES_TO_DB = {
     "400 metros Libre": "400 Free",
     "800 metros Libre": "800 Free",
     "1500 metros Libre": "1500 Free",
+    "2000 metros Libre": "2000 Free",
     "50 metros Espalda": "50 Back",
     "100 metros Espalda": "100 Back",
     "200 metros Espalda": "200 Back",
@@ -150,7 +152,7 @@ PREFERRED_EVENT_ORDER = {
         "200 metros Mariposa", "200 metros Espalda", "200 metros Pecho", "200 metros Libre", "200 metros Combinado"
     ],
     "📏 400+ metros": [
-        "400 metros Combinado", "400 metros Libre", "800 metros Libre", "1500 metros Libre"
+        "400 metros Combinado", "400 metros Libre", "800 metros Libre", "1500 metros Libre", "2000 metros Libre"
     ],
     "🏊 Relevos": [
         "4 x 50 metros Combinado", "4 x 50 metros Libre", 
@@ -198,7 +200,7 @@ def normalize_scraped_event_name(raw_name):
         # For qualification purpose, if we return "200 Free Relay", it won't match "200 Free" standard.
         pass
     
-    dist_match = re.search(r'(\b|^)(25|50|100|200|400|800|1500)(\b|$)', name)
+    dist_match = re.search(r'(\b|^)(25|50|100|200|400|800|1500|2000)(\b|$)', name)
     if not dist_match:
         # Maybe it's "4 x 50"
         if "4 x 50" in name or "4x50" in name: distance = "200"
