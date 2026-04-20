@@ -113,8 +113,8 @@ def parse_pdf(pdf_path, meet_id):
                 if not text: continue
                 
                 for line in text.split('\n'):
-                    if re.match(r'^(?:Event|Evento)\s+\d+', line, re.IGNORECASE):
-                        current_event = line.strip()
+                    if re.match(r'^\s*\(?(?:Event|Evento)\s+\d+', line, re.IGNORECASE):
+                        current_event = line.strip(" ()")
                         continue
                         
                     if current_event:
@@ -130,9 +130,9 @@ def parse_pdf(pdf_path, meet_id):
                             prefix = parts[0].strip()
                             suffix = parts[1].strip()
                             
-                            m_prefix = re.match(r'^([\w\-]*)\s+(.+?)\s+(\d+)$', prefix)
+                            m_prefix = re.match(r'^\s*(?:([\w\-]+)\s+)?(.+?)\s+(\d+)$', prefix)
                             if m_prefix:
-                                rank = m_prefix.group(1)
+                                rank = m_prefix.group(1) or ""
                                 name = m_prefix.group(2) # Surname, Name
                                 age = m_prefix.group(3)
                             else:
