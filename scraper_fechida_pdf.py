@@ -353,7 +353,7 @@ def scrape_fechida(log_callback=print):
                         puntajes_pdf_url = a['href']
                         break
                         
-            for text_node in csoup.find_all(string=lambda text: text and 'resultados' in text.lower() and 'sembrados' not in text.lower()):
+            for text_node in csoup.find_all(string=lambda text: text and 'resultados completos' in text.lower()):
                 row = text_node.find_parent('tr')
                 if row:
                     a = row.find('a', href=True)
