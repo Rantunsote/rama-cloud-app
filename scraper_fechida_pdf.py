@@ -315,9 +315,11 @@ def scrape_fechida(log_callback=print):
             
             pdf_urls = []
             meet_name = f"Campeonato Fechida {c_id}"
-            title_tag = csoup.find(class_='post__title')
+            title_tag = csoup.find('h1', class_='post__title') or csoup.find('h2', class_='post__title')
             if title_tag:
                 meet_name = title_tag.get_text(strip=True).title()
+                if len(meet_name) > 100:
+                    meet_name = f"Campeonato Fechida {c_id}"
             
             meet_date = datetime.now().strftime("%Y-%m-%d")
             meet_location = None
