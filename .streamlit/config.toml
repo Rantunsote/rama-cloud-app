@@ -1,0 +1,11 @@
+[server]
+fileWatcherType = "none"
+folderWatchBlacklist = ["data", "**/data", "*/data"]
+
+[theme]
+base = "light"
+primaryColor = "#0ea5e9"
+backgroundColor = "#f8fafc"
+secondaryBackgroundColor = "#ffffff"
+textColor = "#0f172a"
+font = "sans serif"
