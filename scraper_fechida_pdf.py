@@ -10,6 +10,8 @@ import pandas as pd
 from difflib import SequenceMatcher
 from datetime import datetime
 import time
+import unicodedata
+import hashlib
 
 socket.setdefaulttimeout(30)
 
@@ -24,6 +26,7 @@ DB_PATH = os.environ.get("RAMA_DB_PATH", DB_PATH)
 
 
 TEAMS_REGEX = ["penalolen", "peñalolen", "peñalolén", "rama de natacion penalolen", "rama natacion penalolen", "crnp", "penilolen", "peñilolen", "penálolen"]
+TEAM_ID = "10034725"  # Rama Peñalolén in Swimcloud/app roster
 
 def get_db_connection():
     return sqlite3.connect(DB_PATH)
@@ -64,13 +67,18 @@ def get_ctx():
 def map_event_name(raw_event_line):
     # Example: "Evento 6 Hombres 15-17 200 CL Metro Estilo Libre"
     # Example: "Event 1 Girls 9 Year Olds 100 LC Meter Butterfly"
+    event_text = re.sub(r'^(?:Event|Evento)\s+\d+\s+', '', raw_event_line, flags=re.IGNORECASE)
     
     # 1. Distance
-    dist_match = re.search(r'\b(25|50|100|200|400|800|1500|2000|3000|5000)\b', raw_event_line)
+    dist_match = re.search(
+        r'\b(25|50|100|200|400|800|1500|2000|3000|5000)\s*(?:LC|SC|CL|CC)?\s*(?:Meter|Meters|Metro|Metros|m)?\b',
+        event_text,
+        re.IGNORECASE
+    )
     distance = dist_match.group(1) if dist_match else None
     
     # 2. Style
-    lower_line = raw_event_line.lower()
+    lower_line = event_text.lower()
     style = None
     if 'libre' in lower_line or 'free' in lower_line:
         style = 'Free'
@@ -98,6 +106,28 @@ def map_pool_size(raw_event_line):
     if 'SC' in raw_event_line or '25m' in raw_event_line.lower():
         return '25m'
     return '50m' # CL usually means 50m (Course Long)
+
+def extract_result_time(tokens):
+    """Return the first token that looks like a swim time/status."""
+    status_values = {'DQ', 'NS', 'NT', 'DNF'}
+    for token in tokens:
+        value = token.strip()
+        if not value:
+            continue
+
+        upper_value = value.upper()
+        if upper_value in status_values:
+            return upper_value
+
+        # Exhibition times sometimes start with X; keep the actual time.
+        if upper_value.startswith('X'):
+            value = value[1:]
+
+        normalized = value.replace(',', '.')
+        if re.match(r'^(?:\d{1,2}:)?\d{1,2}\.\d{2}$', normalized):
+            return normalized
+
+    return None
 
 def parse_pdf(pdf_path, meet_id):
     results = []
@@ -138,19 +168,9 @@ def parse_pdf(pdf_path, meet_id):
                             else:
                                 continue # not a swimmer line
                                 
-                            s_tokens = suffix.split()
-                            if len(s_tokens) >= 2:
-                                finals_time = s_tokens[1]
-                            elif len(s_tokens) == 1:
-                                finals_time = s_tokens[0]
-                            else:
+                            finals_time = extract_result_time(suffix.split())
+                            if not finals_time:
                                 continue
-                                
-                            if finals_time.upper() in ['DQ', 'NS', 'NT']:
-                                finals_time = finals_time.upper()
-                            else:
-                                # standardize time format from 2:00,46 to 2:00.46
-                                finals_time = finals_time.replace(',', '.')
                                 
                             results.append({
                                 'raw_name': name,
@@ -185,6 +205,53 @@ def parse_puntajes_pdf(pdf_path):
 
 def similar(a, b):
     return SequenceMatcher(None, a, b).ratio()
+
+def normalize_name_for_match(name):
+    value = unicodedata.normalize('NFKD', name.lower())
+    value = ''.join(ch for ch in value if not unicodedata.combining(ch))
+    value = re.sub(r'[^a-z0-9 ]+', ' ', value)
+    return re.sub(r'\s+', ' ', value).strip()
+
+def swimmer_name_score(pdf_name, db_name):
+    pdf_norm = normalize_name_for_match(pdf_name)
+    db_norm = normalize_name_for_match(db_name)
+    base_score = similar(pdf_norm, db_norm)
+
+    pdf_tokens = pdf_norm.split()
+    db_tokens = db_norm.split()
+    if len(pdf_tokens) >= 2 and all(token in db_tokens for token in pdf_tokens):
+        return max(base_score, 0.96)
+    if len(db_tokens) >= 2 and all(token in pdf_tokens for token in db_tokens):
+        return max(base_score, 0.96)
+    if pdf_tokens and db_tokens and pdf_tokens[0] == db_tokens[0]:
+        shared_tokens = set(pdf_tokens) & set(db_tokens)
+        if len(shared_tokens) >= 2:
+            return max(base_score, 0.92)
+
+    return base_score
+
+def infer_gender(raw_event_line):
+    event = normalize_name_for_match(raw_event_line)
+    if re.search(r'\b(girls|women|female|damas|mujeres|femenino)\b', event):
+        return 'F'
+    if re.search(r'\b(boys|men|male|varones|hombres|masculino)\b', event):
+        return 'M'
+    return None
+
+def derive_birth_date(age, meet_date):
+    try:
+        age_value = int(age)
+        meet_year = pd.to_datetime(meet_date).year if meet_date else datetime.now().year
+        if pd.isna(meet_year):
+            meet_year = datetime.now().year
+        return f"{int(meet_year) - age_value}-01-01"
+    except Exception:
+        return None
+
+def build_fechida_swimmer_id(name, birth_date, gender):
+    identity = f"{normalize_name_for_match(name)}|{birth_date or ''}|{gender or ''}"
+    digest = hashlib.sha1(identity.encode('utf-8')).hexdigest()[:10]
+    return f"FCH_{digest}"
 
 def format_fechida_name(raw):
     # "Perez, Juan" -> "Juan Perez"
@@ -238,7 +305,7 @@ def sync_results_to_db(results, meet_name, meet_date, meet_location=None, meet_p
         best_match_id = None
         best_score = 0
         for sid, sname, sbirth in swimmers:
-            score = similar(formatted_name.lower(), sname.lower())
+            score = swimmer_name_score(formatted_name, sname)
             
             # If name is a strong match, verify age parity to avoid matching adults with kids
             if score > 0.75:
@@ -263,20 +330,33 @@ def sync_results_to_db(results, meet_name, meet_date, meet_location=None, meet_p
         if best_match_id and best_score > 0.75:
             db_event = map_event_name(r['raw_event'])
             db_pool = map_pool_size(r['raw_event'])
-            
-            # Check if this result exists (with same meet and event)
-            c.execute("SELECT id FROM results WHERE swimmer_id=? AND event_name=? AND meet_id=?", 
-                      (best_match_id, db_event, meet_id))
-            exist = c.fetchone()
-            
-            if exist:
-                # OVERWRITE!
-                c.execute("UPDATE results SET time=?, pool_size=?, place=? WHERE id=?", 
-                          (r['finals_time'], db_pool, r['rank'], exist[0]))
-            else:
-                c.execute("INSERT INTO results (swimmer_id, meet_id, event_name, time, pool_size, place) VALUES (?, ?, ?, ?, ?, ?)",
-                          (best_match_id, meet_id, db_event, r['finals_time'], db_pool, r['rank']))
-            inserts += 1
+        else:
+            birth_date = derive_birth_date(result_age_val, meet_date)
+            gender = infer_gender(r['raw_event'])
+            best_match_id = build_fechida_swimmer_id(formatted_name, birth_date, gender)
+            c.execute(
+                """
+                INSERT OR IGNORE INTO swimmers (id, name, url, team_id, birth_date, gender)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (best_match_id, formatted_name, "Fechida", TEAM_ID, birth_date, gender)
+            )
+            db_event = map_event_name(r['raw_event'])
+            db_pool = map_pool_size(r['raw_event'])
+
+        # Check if this result exists (with same meet and event)
+        c.execute("SELECT id FROM results WHERE swimmer_id=? AND event_name=? AND meet_id=?",
+                  (best_match_id, db_event, meet_id))
+        exist = c.fetchone()
+
+        if exist:
+            # OVERWRITE!
+            c.execute("UPDATE results SET time=?, pool_size=?, place=? WHERE id=?",
+                      (r['finals_time'], db_pool, r['rank'], exist[0]))
+        else:
+            c.execute("INSERT INTO results (swimmer_id, meet_id, event_name, time, pool_size, place) VALUES (?, ?, ?, ?, ?, ?)",
+                      (best_match_id, meet_id, db_event, r['finals_time'], db_pool, r['rank']))
+        inserts += 1
             
     conn.commit()
     conn.close()
@@ -315,7 +395,11 @@ def scrape_fechida(log_callback=print):
             
             pdf_urls = []
             meet_name = f"Campeonato Fechida {c_id}"
-            title_tag = csoup.find('h1', class_='post__title') or csoup.find('h2', class_='post__title')
+            title_tag = (
+                csoup.find('h1', class_='post__title') or
+                csoup.find('h2', class_='post__title') or
+                csoup.find('h3', class_='post__title')
+            )
             if title_tag:
                 meet_name = title_tag.get_text(strip=True).title()
                 if len(meet_name) > 100:
