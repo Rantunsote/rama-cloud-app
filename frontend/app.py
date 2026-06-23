@@ -251,8 +251,16 @@ st.markdown("""
         color: #1e293b;
     }
 
+    header[data-testid="stHeader"],
+    div[data-testid="stToolbar"],
+    #MainMenu,
+    footer {
+        display: none !important;
+        height: 0 !important;
+    }
+
     .block-container {
-        padding-top: 0.15rem;
+        padding-top: 0;
         padding-bottom: 2.5rem;
         max-width: 1320px;
     }
@@ -311,28 +319,39 @@ st.markdown("""
         font-size: 0.92rem;
     }
 
-    div[data-testid="stTabs"] {
-        margin-top: 0 !important;
+    .rama-main-nav-spacer {
+        height: 4.4rem;
     }
 
-    div[data-testid="stTabs"] > div[role="tablist"] {
-        position: sticky;
-        top: 0;
-        z-index: 999;
-        width: 100%;
-        align-items: center;
-        gap: 0.35rem;
-        padding: 0.55rem 0.2rem 0.45rem 0.2rem;
-        margin: 0 0 1.1rem 0;
-        background: rgba(248, 250, 252, 0.96);
-        backdrop-filter: blur(14px);
-        -webkit-backdrop-filter: blur(14px);
-        border-bottom: 1px solid var(--rama-border);
-        box-shadow: 0 12px 26px rgba(15, 23, 42, 0.06);
+    .st-key-rama_nav_label {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        z-index: 100000;
+        width: 100vw !important;
+        padding: 0.65rem max(0.65rem, calc((100vw - 1320px) / 2)) 0.6rem max(0.65rem, calc((100vw - 1320px) / 2));
+        background: rgba(248, 250, 252, 0.97);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border-bottom: 1px solid rgba(203, 213, 225, 0.9);
+        box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+        overflow-x: auto;
     }
 
-    div[data-testid="stTabs"] > div[role="tablist"] button {
-        margin-bottom: 0 !important;
+    .st-key-rama_nav_label [data-testid="stButtonGroup"] {
+        width: min(1320px, calc(100vw - 1.25rem)) !important;
+        margin: 0 auto !important;
+    }
+
+    .st-key-rama_nav_label [data-testid="stButtonGroup"] > div {
+        flex-wrap: nowrap !important;
+        overflow-x: auto !important;
+        scrollbar-width: none;
+    }
+
+    .st-key-rama_nav_label [data-testid="stButtonGroup"] > div::-webkit-scrollbar {
+        display: none;
     }
 
     div[data-testid="stTabs"] button {
@@ -1496,16 +1515,52 @@ def render_team_view(swimmers_df):
             </div>
             """), unsafe_allow_html=True)
     
-    tab_list = ["🏠 Inicio", "🏊 Plantel", "🏆 Torneos", "🥇 Puntajes", "📊 Análisis", "📈 Estadisticas", "🏅 Clasificados", "🏊 Relevos"]
+    nav_items = [
+        ("inicio", "🏠 Inicio"),
+        ("plantel", "🏊 Plantel"),
+        ("torneos", "🏆 Torneos"),
+        ("puntajes", "🥇 Puntajes"),
+        ("analisis", "📊 Análisis"),
+        ("estadisticas", "📈 Estadisticas"),
+        ("clasificados", "🏅 Clasificados"),
+        ("relevos", "🏊 Relevos"),
+    ]
     is_admin = st.session_state.get("logged_user") == "admin"
     if is_admin:
-        tab_list.append("📝 Ingreso")
-        
-    tabs = st.tabs(tab_list)
-    t_home, t_roster, t_meets, t_scores, t_analysis, t_stats, t_qualifiers, t_relays = tabs[0], tabs[1], tabs[2], tabs[3], tabs[4], tabs[5], tabs[6], tabs[7]
-    t_ingreso = tabs[8] if is_admin else None
-    
-    with t_home:
+        nav_items.append(("ingreso", "📝 Ingreso"))
+
+    valid_sections = {key for key, _ in nav_items}
+    labels_by_key = dict(nav_items)
+    keys_by_label = {label: key for key, label in nav_items}
+    if st.session_state.get("rama_nav_section") not in valid_sections:
+        st.session_state["rama_nav_section"] = "inicio"
+
+    current_label = labels_by_key[st.session_state["rama_nav_section"]]
+    nav_labels = [label for _, label in nav_items]
+    if st.session_state.get("rama_nav_label") not in nav_labels:
+        st.session_state["rama_nav_label"] = current_label
+
+    if hasattr(st, "segmented_control"):
+        selected_label = st.segmented_control(
+            "Menú principal",
+            options=nav_labels,
+            key="rama_nav_label",
+            label_visibility="collapsed",
+        )
+    else:
+        selected_label = st.radio(
+            "Menú principal",
+            options=nav_labels,
+            key="rama_nav_label",
+            horizontal=True,
+            label_visibility="collapsed",
+        )
+
+    selected_section = keys_by_label.get(selected_label, "inicio")
+    st.session_state["rama_nav_section"] = selected_section
+    st.markdown('<div class="rama-main-nav-spacer"></div>', unsafe_allow_html=True)
+
+    if selected_section == "inicio":
         render_home_hero()
         st.markdown('<div style="height:1.25rem;"></div>', unsafe_allow_html=True)
 
@@ -1575,7 +1630,7 @@ def render_team_view(swimmers_df):
             else:
                 st.info("No hay categorías disponibles.")
 
-    with t_roster:
+    if selected_section == "plantel":
         st.markdown(html_block("""
         <div style="margin-bottom:1rem;">
             <div class="rama-pill">🏊 Plantel</div>
@@ -1635,7 +1690,7 @@ def render_team_view(swimmers_df):
             go_to_swimmer(selected_id)
             st.rerun()
 
-    with t_meets:
+    if selected_section == "torneos":
         st.subheader("Historial de Torneos")
         st.info("💡 Puedes editar el tamaño de la piscina (25m/50m) directamente en la tabla.")
         
@@ -1693,10 +1748,10 @@ def render_team_view(swimmers_df):
                     time.sleep(1) # Visual feedback
                     st.rerun()
 
-    with t_analysis:
+    if selected_section == "analisis":
         render_analysis_tab(swimmers_df)
 
-    with t_stats:
+    if selected_section == "estadisticas":
         st.subheader("📈 Estadísticas avanzadas")
         all_results = load_all_results()
         if all_results.empty:
@@ -1813,13 +1868,13 @@ def render_team_view(swimmers_df):
 
 
 
-    with t_qualifiers:
+    if selected_section == "clasificados":
         render_qualifiers_tab(swimmers_df)
         
-    with t_relays:
+    if selected_section == "relevos":
         render_relay_builder()
         
-    with t_scores:
+    if selected_section == "puntajes":
         st.subheader("🥇 Ranking de Puntajes por Nadador")
         st.markdown("Tabla calculada automáticamente por el sistema basándose en la posición (`Lugar`) final. \n *(1º=9pts, 2º=7pts, 3º=6pts, 4º=5pts, 5º=4pts, 6º=3pts, 7º=2pts, 8º=1pt)*")
         
@@ -1855,8 +1910,8 @@ def render_team_view(swimmers_df):
                 
                 st.dataframe(ranking, use_container_width=True)
         
-    if is_admin and t_ingreso:
-        with t_ingreso:
+    if selected_section == "ingreso":
+        with st.container():
             st.subheader("📝 Ingreso y Actualización de Datos")
             
             t_dob, t_fechida, t_logs, t_other = st.tabs(["Actualizar Cumpleaños (Masivo)", "Sincronizar Global", "Registros de Acceso", "Otros"])
