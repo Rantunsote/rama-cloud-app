@@ -252,7 +252,7 @@ st.markdown("""
     }
 
     .block-container {
-        padding-top: 1.4rem;
+        padding-top: 0.15rem;
         padding-bottom: 2.5rem;
         max-width: 1320px;
     }
@@ -311,11 +311,36 @@ st.markdown("""
         font-size: 0.92rem;
     }
 
+    div[data-testid="stTabs"] {
+        margin-top: 0 !important;
+    }
+
+    div[data-testid="stTabs"] > div[role="tablist"] {
+        position: sticky;
+        top: 0;
+        z-index: 999;
+        width: 100%;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.55rem 0.2rem 0.45rem 0.2rem;
+        margin: 0 0 1.1rem 0;
+        background: rgba(248, 250, 252, 0.96);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+        border-bottom: 1px solid var(--rama-border);
+        box-shadow: 0 12px 26px rgba(15, 23, 42, 0.06);
+    }
+
+    div[data-testid="stTabs"] > div[role="tablist"] button {
+        margin-bottom: 0 !important;
+    }
+
     div[data-testid="stTabs"] button {
         border-radius: 999px !important;
         padding: 0.5rem 0.9rem !important;
         color: #334155 !important;
         font-weight: 750 !important;
+        border-bottom: 0 !important;
     }
 
     div[data-testid="stTabs"] button[aria-selected="true"] {
