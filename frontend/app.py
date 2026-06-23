@@ -1378,99 +1378,98 @@ def render_team_view(swimmers_df):
     fallback_path = next((p for p in fallback_paths if os.path.exists(p)), fallback_paths[0])
     bg_image_file = fondo_path if os.path.exists(fondo_path) else fallback_path
     
-    if os.path.exists(bg_image_file):
-        img_b64 = get_img_as_base64(bg_image_file)
-        
-        st.markdown(html_block(f"""
-        <style>
-            .hero-container {{
-                background-image: linear-gradient(135deg, rgba(15, 23, 42, 0.55), rgba(2, 132, 199, 0.38), rgba(15, 23, 42, 0.78)), url("data:image/png;base64,{img_b64}");
-                background-size: cover;
-                background-position: center;
-                min-height: 340px;
-                border-radius: 28px;
-                display: flex;
-                align-items: center; /* Vertically center the content */
-                justify-content: center; /* Center content horizontally */
-                padding: 2rem;
-                position: relative;
-                color: white;
-                box-shadow: 0 24px 60px rgba(15, 23, 42, 0.22);
-                text-align: center;
-                overflow: hidden;
-                border: 1px solid rgba(255, 255, 255, 0.24);
-            }}
-            .hero-container::after {{
-                content: "";
-                position: absolute;
-                inset: auto -10% -28% -10%;
-                height: 55%;
-                background: radial-gradient(ellipse at center, rgba(14,165,233,0.35), transparent 65%);
-            }}
-            .hero-content {{
-                z-index: 2;
-                max-width: 820px;
-            }}
-            .hero-title {{
-                font-size: clamp(2.4rem, 5vw, 4.6rem);
-                font-weight: 900;
-                margin: 0;
-                text-shadow: 0 14px 38px rgba(0,0,0,0.5);
-                line-height: 1.1;
-                color: #ffffff !important;
-                letter-spacing: -0.04em;
-            }}
-            .hero-subtitle {{
-                font-size: 1.2rem;
-                margin-top: 1rem;
-                font-weight: 500;
-                color: #f1f5f9 !important;
-                text-shadow: 1px 1px 3px rgba(0,0,0,0.8);
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                gap: 0.3rem;
-            }}
-            .coach-tag {{
-                background-color: rgba(255, 255, 255, 0.16);
-                padding: 7px 14px;
-                border-radius: 999px;
-                backdrop-filter: blur(10px);
-                font-size: 1rem;
-                border: 1px solid rgba(255, 255, 255, 0.24);
-            }}
-        </style>
-        
-        <div class="hero-container">
-            <div class="hero-content">
-                <h1 class="hero-title">Rama de Natación Peñalolén</h1>
-                <div class="hero-subtitle">
-                    <div style="margin-bottom: 5px;">🇨🇱 Santiago, Chile</div>
-                    
-                    <div class="coach-tag">Head Coach: Cesar Cereceda</div>
-                    
-                    <div style="display: flex; gap: 10px; margin-top: 5px; flex-wrap: wrap; justify-content: center;">
-                        <span class="coach-tag">Coach Infantiles: Oscar Cifuentes</span>
-                        <span class="coach-tag">Coach Menores: Valeria Contalba</span>
+    def render_home_hero():
+        if os.path.exists(bg_image_file):
+            img_b64 = get_img_as_base64(bg_image_file)
+
+            st.markdown(html_block(f"""
+            <style>
+                .hero-container {{
+                    background-image: linear-gradient(135deg, rgba(15, 23, 42, 0.55), rgba(2, 132, 199, 0.38), rgba(15, 23, 42, 0.78)), url("data:image/png;base64,{img_b64}");
+                    background-size: cover;
+                    background-position: center;
+                    min-height: 340px;
+                    border-radius: 28px;
+                    display: flex;
+                    align-items: center; /* Vertically center the content */
+                    justify-content: center; /* Center content horizontally */
+                    padding: 2rem;
+                    position: relative;
+                    color: white;
+                    box-shadow: 0 24px 60px rgba(15, 23, 42, 0.22);
+                    text-align: center;
+                    overflow: hidden;
+                    border: 1px solid rgba(255, 255, 255, 0.24);
+                    margin-top: 0.75rem;
+                }}
+                .hero-container::after {{
+                    content: "";
+                    position: absolute;
+                    inset: auto -10% -28% -10%;
+                    height: 55%;
+                    background: radial-gradient(ellipse at center, rgba(14,165,233,0.35), transparent 65%);
+                }}
+                .hero-content {{
+                    z-index: 2;
+                    max-width: 820px;
+                }}
+                .hero-title {{
+                    font-size: clamp(2.4rem, 5vw, 4.6rem);
+                    font-weight: 900;
+                    margin: 0;
+                    text-shadow: 0 14px 38px rgba(0,0,0,0.5);
+                    line-height: 1.1;
+                    color: #ffffff !important;
+                    letter-spacing: -0.04em;
+                }}
+                .hero-subtitle {{
+                    font-size: 1.2rem;
+                    margin-top: 1rem;
+                    font-weight: 500;
+                    color: #f1f5f9 !important;
+                    text-shadow: 1px 1px 3px rgba(0,0,0,0.8);
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    gap: 0.3rem;
+                }}
+                .coach-tag {{
+                    background-color: rgba(255, 255, 255, 0.16);
+                    padding: 7px 14px;
+                    border-radius: 999px;
+                    backdrop-filter: blur(10px);
+                    font-size: 1rem;
+                    border: 1px solid rgba(255, 255, 255, 0.24);
+                }}
+            </style>
+            <div class="hero-container">
+                <div class="hero-content">
+                    <h1 class="hero-title">Rama de Natación Peñalolén</h1>
+                    <div class="hero-subtitle">
+                        <div style="margin-bottom: 5px;">🇨🇱 Santiago, Chile</div>
+
+                        <div class="coach-tag">Head Coach: Cesar Cereceda</div>
+
+                        <div style="display: flex; gap: 10px; margin-top: 5px; flex-wrap: wrap; justify-content: center;">
+                            <span class="coach-tag">Coach Infantiles: Oscar Cifuentes</span>
+                            <span class="coach-tag">Coach Menores: Valeria Contalba</span>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
-        """), unsafe_allow_html=True)
-    else:
-        # Fallback if image missing: Simple blue header, NO LOGO
-        st.markdown(html_block("""
-        <div style="background-color: #0f172a; padding: 2rem; border-radius: 15px; text-align: center; color: white; margin-bottom: 2rem;">
-            <h1 style="margin:0; font-size: 3rem;">Rama de Natación Peñalolén</h1>
-            <div style="margin-top: 1rem; opacity: 0.9;">
-                <div>Santiago, Chile</div>
-                <div style="margin-top: 5px;"><strong>Head Coach:</strong> Cesar Cereceda</div>
-                <div><strong>Infantiles:</strong> Oscar Cifuentes • <strong>Menores:</strong> Valeria Contalba</div>
+            """), unsafe_allow_html=True)
+        else:
+            # Fallback if image missing: Simple blue header, NO LOGO
+            st.markdown(html_block("""
+            <div style="background-color: #0f172a; padding: 2rem; border-radius: 15px; text-align: center; color: white; margin: 0.75rem 0 2rem 0;">
+                <h1 style="margin:0; font-size: 3rem;">Rama de Natación Peñalolén</h1>
+                <div style="margin-top: 1rem; opacity: 0.9;">
+                    <div>Santiago, Chile</div>
+                    <div style="margin-top: 5px;"><strong>Head Coach:</strong> Cesar Cereceda</div>
+                    <div><strong>Infantiles:</strong> Oscar Cifuentes • <strong>Menores:</strong> Valeria Contalba</div>
+                </div>
             </div>
-        </div>
-        """), unsafe_allow_html=True)
-        
-    st.markdown("---")
+            """), unsafe_allow_html=True)
     
     tab_list = ["🏠 Inicio", "🏊 Plantel", "🏆 Torneos", "🥇 Puntajes", "📊 Análisis", "📈 Estadisticas", "🏅 Clasificados", "🏊 Relevos"]
     is_admin = st.session_state.get("logged_user") == "admin"
@@ -1482,6 +1481,9 @@ def render_team_view(swimmers_df):
     t_ingreso = tabs[8] if is_admin else None
     
     with t_home:
+        render_home_hero()
+        st.markdown('<div style="height:1.25rem;"></div>', unsafe_allow_html=True)
+
         meets_df = load_meets()
         if not meets_df.empty:
             meets_df['_sort_date'] = pd.to_datetime(meets_df['date'], errors='coerce')
