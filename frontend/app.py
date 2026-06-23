@@ -9,6 +9,7 @@ from datetime import datetime
 import time
 import sys
 import itertools
+import html
 
 def map_points(place):
     try:
@@ -264,16 +265,130 @@ def get_img_as_base64(file):
 # Custom CSS for "App-like" feel
 st.markdown("""
 <style>
+    :root {
+        --rama-navy: #0f172a;
+        --rama-blue: #0284c7;
+        --rama-sky: #0ea5e9;
+        --rama-teal: #14b8a6;
+        --rama-gold: #f59e0b;
+        --rama-bg: #f8fafc;
+        --rama-card: #ffffff;
+        --rama-muted: #64748b;
+        --rama-border: #e2e8f0;
+        --rama-shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
+    }
+
     html, body, [data-testid="stApp"] {
-        background-color: #ffffff !important;
+        background:
+            radial-gradient(circle at top left, rgba(14, 165, 233, 0.14), transparent 34rem),
+            linear-gradient(180deg, #ffffff 0%, var(--rama-bg) 42%, #eef6fb 100%) !important;
         color: #0f172a !important;
     }
-    p, h1, h2, h3, h4, h5, span, div {
-        color: #0f172a !important;
+
+    h1, h2, h3, h4 {
+        letter-spacing: -0.03em;
+        color: var(--rama-navy) !important;
     }
-    .stMarkdown, .stText, .stMetricValue, .stMetricLabel {
-        color: #0f172a !important;
+
+    p, .stMarkdown, .stText {
+        color: #1e293b;
     }
+
+    .block-container {
+        padding-top: 1.4rem;
+        padding-bottom: 2.5rem;
+        max-width: 1320px;
+    }
+
+    div[data-testid="stMetric"] {
+        background: rgba(255, 255, 255, 0.86);
+        border: 1px solid rgba(226, 232, 240, 0.9);
+        border-radius: 18px;
+        padding: 1rem 1.1rem;
+        box-shadow: var(--rama-shadow);
+    }
+
+    div[data-testid="stMetricLabel"] p {
+        color: var(--rama-muted) !important;
+        font-size: 0.78rem;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        font-weight: 700;
+    }
+
+    div[data-testid="stMetricValue"] {
+        color: var(--rama-navy) !important;
+        font-weight: 850;
+    }
+
+    .rama-card {
+        background: rgba(255, 255, 255, 0.9);
+        border: 1px solid rgba(226, 232, 240, 0.95);
+        border-radius: 22px;
+        padding: 1.25rem;
+        box-shadow: var(--rama-shadow);
+    }
+
+    .rama-section-title {
+        font-size: 1.2rem;
+        font-weight: 850;
+        margin: 0.5rem 0 1rem 0;
+        color: var(--rama-navy);
+    }
+
+    .rama-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.38rem 0.7rem;
+        border-radius: 999px;
+        background: #e0f2fe;
+        color: #075985;
+        border: 1px solid #bae6fd;
+        font-size: 0.8rem;
+        font-weight: 750;
+    }
+
+    .rama-muted {
+        color: var(--rama-muted);
+        font-size: 0.92rem;
+    }
+
+    div[data-testid="stTabs"] button {
+        border-radius: 999px !important;
+        padding: 0.5rem 0.9rem !important;
+        color: #334155 !important;
+        font-weight: 750 !important;
+    }
+
+    div[data-testid="stTabs"] button[aria-selected="true"] {
+        background: linear-gradient(135deg, var(--rama-blue), var(--rama-teal)) !important;
+        color: white !important;
+        box-shadow: 0 12px 24px rgba(2, 132, 199, 0.18);
+    }
+
+    div[data-testid="stDataFrame"],
+    div[data-testid="stDataEditor"] {
+        border-radius: 18px;
+        overflow: hidden;
+        border: 1px solid var(--rama-border);
+        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+    }
+
+    .stButton > button {
+        border-radius: 999px;
+        border: 1px solid #bae6fd;
+        background: #ffffff;
+        color: var(--rama-blue);
+        font-weight: 750;
+    }
+
+    .stButton > button:hover {
+        border-color: var(--rama-blue);
+        color: var(--rama-navy);
+        box-shadow: 0 10px 24px rgba(14, 165, 233, 0.14);
+    }
+
     /* Fix for Selectbox Dropdowns (force light theme on popups) */
     div[data-baseweb="popover"], div[data-baseweb="menu"], div[role="listbox"], ul[data-testid="stSelectboxVirtualDropdown"] {
         background-color: #ffffff !important;
@@ -288,14 +403,11 @@ st.markdown("""
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
-    .block-container {
-        padding-top: 2rem;
-        padding-bottom: 2rem;
-    }
     div[data-testid="stTextInput"] input {
-        border-radius: 10px;
+        border-radius: 999px;
+        border-color: var(--rama-border);
     }
-    
+
     /* HIDE SIDEBAR COMPLETELY */
     section[data-testid="stSidebar"] {
         display: none;
@@ -305,6 +417,42 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
+
+def esc(value):
+    return html.escape("" if value is None else str(value))
+
+def render_kpi_card(label, value, helper="", accent="#0ea5e9"):
+    st.markdown(html_block(f"""
+    <div class="rama-card" style="min-height: 132px; border-top: 4px solid {accent};">
+        <div style="color:#64748b; font-size:0.78rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">{esc(label)}</div>
+        <div style="color:#0f172a; font-size:2.05rem; font-weight:900; line-height:1.05; margin-top:0.45rem;">{esc(value)}</div>
+        <div class="rama-muted" style="margin-top:0.5rem;">{esc(helper)}</div>
+    </div>
+    """), unsafe_allow_html=True)
+
+def render_meet_card(name, date, pool_size, count=None, accent="#0ea5e9"):
+    count_text = f" • {count} resultados" if count is not None else ""
+    st.markdown(html_block(f"""
+    <div class="rama-card" style="margin-bottom:0.85rem; padding:1rem 1.1rem; border-left:5px solid {accent};">
+        <div style="font-weight:850; color:#0f172a; font-size:1rem;">{esc(name)}</div>
+        <div class="rama-muted" style="margin-top:0.3rem;">📅 {esc(date)} • 📏 {esc(pool_size or 'N/A')}{esc(count_text)}</div>
+    </div>
+    """), unsafe_allow_html=True)
+
+def render_swimmer_card(row):
+    gender = row.get("gender") or "?"
+    gender_label = {"M": "Varón", "F": "Dama"}.get(str(gender).upper(), str(gender))
+    st.markdown(html_block(f"""
+    <div class="rama-card" style="height:100%; min-height:124px;">
+        <div style="display:flex; align-items:center; gap:0.8rem;">
+            <div style="width:42px; height:42px; border-radius:50%; background:linear-gradient(135deg,#0ea5e9,#14b8a6); display:flex; align-items:center; justify-content:center; color:white; font-size:1.2rem;">🏊</div>
+            <div>
+                <div style="font-weight:850; color:#0f172a; line-height:1.15;">{esc(row.get('name'))}</div>
+                <div class="rama-muted">{esc(row.get('Categoría', 'Desconocida'))} • {esc(gender_label)}</div>
+            </div>
+        </div>
+    </div>
+    """), unsafe_allow_html=True)
 
 def get_connection():
     if not os.path.exists(DB_PATH):
@@ -1247,32 +1395,41 @@ def render_team_view(swimmers_df):
         st.markdown(html_block(f"""
         <style>
             .hero-container {{
-                background-image: linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.7)), url("data:image/png;base64,{img_b64}");
+                background-image: linear-gradient(135deg, rgba(15, 23, 42, 0.55), rgba(2, 132, 199, 0.38), rgba(15, 23, 42, 0.78)), url("data:image/png;base64,{img_b64}");
                 background-size: cover;
                 background-position: center;
-                height: 350px; /* Increased height to show more of the image */
-                border-radius: 15px;
+                min-height: 340px;
+                border-radius: 28px;
                 display: flex;
                 align-items: center; /* Vertically center the content */
                 justify-content: center; /* Center content horizontally */
                 padding: 2rem;
                 position: relative;
                 color: white;
-                box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+                box-shadow: 0 24px 60px rgba(15, 23, 42, 0.22);
                 text-align: center;
+                overflow: hidden;
+                border: 1px solid rgba(255, 255, 255, 0.24);
+            }}
+            .hero-container::after {{
+                content: "";
+                position: absolute;
+                inset: auto -10% -28% -10%;
+                height: 55%;
+                background: radial-gradient(ellipse at center, rgba(14,165,233,0.35), transparent 65%);
             }}
             .hero-content {{
                 z-index: 2;
-                max_width: 800px;
+                max-width: 820px;
             }}
             .hero-title {{
-                font-size: 3.5rem;
-                font-weight: 800;
+                font-size: clamp(2.4rem, 5vw, 4.6rem);
+                font-weight: 900;
                 margin: 0;
-                text-shadow: 2px 2px 4px rgba(0,0,0,0.8); /* Stronger shadow for readability */
+                text-shadow: 0 14px 38px rgba(0,0,0,0.5);
                 line-height: 1.1;
                 color: #ffffff !important;
-                letter-spacing: 1px;
+                letter-spacing: -0.04em;
             }}
             .hero-subtitle {{
                 font-size: 1.2rem;
@@ -1286,12 +1443,12 @@ def render_team_view(swimmers_df):
                 gap: 0.3rem;
             }}
             .coach-tag {{
-                background-color: rgba(255, 255, 255, 0.15);
-                padding: 4px 12px;
-                border-radius: 20px;
-                backdrop-filter: blur(5px);
+                background-color: rgba(255, 255, 255, 0.16);
+                padding: 7px 14px;
+                border-radius: 999px;
+                backdrop-filter: blur(10px);
                 font-size: 1rem;
-                border: 1px solid rgba(255, 255, 255, 0.2);
+                border: 1px solid rgba(255, 255, 255, 0.24);
             }}
         </style>
         
@@ -1336,37 +1493,114 @@ def render_team_view(swimmers_df):
     t_ingreso = tabs[9] if is_admin else None
     
     with t_home:
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Nadadores Activos", len(swimmers_df))
-        
         meets_df = load_meets()
         if not meets_df.empty:
             meets_df['_sort_date'] = pd.to_datetime(meets_df['date'], errors='coerce')
             meets_df = meets_df.sort_values(by='_sort_date', ascending=False)
-            
-        c2.metric("Torneos Registrados", len(meets_df))
-        
-        # Recent Meets
-        st.subheader("Competencias Recientes")
-        if not meets_df.empty:
-            for i in range(min(5, len(meets_df))):
-                meet = meets_df.iloc[i]
-                st.markdown(f"""
-                <div style="padding: 1rem; background-color: #f8fafc; border-radius: 8px; margin-bottom: 0.5rem; border-left: 4px solid #3b82f6;">
-                    <strong style="color: #0f172a;">{meet['name']}</strong><br>
-                    <span style="color: #64748b; font-size: 0.9rem;">📅 {meet['date']} • 📏 {meet.get('pool_size', 'N/A')}</span>
-                </div>
-                """, unsafe_allow_html=True)
+
+        all_results = load_all_results()
+        total_results = len(all_results) if not all_results.empty else 0
+        latest_meet = meets_df.iloc[0] if not meets_df.empty else None
+        latest_meet_name = latest_meet['name'] if latest_meet is not None else "Sin registros"
+        latest_meet_date = latest_meet['date'] if latest_meet is not None else "—"
+
+        st.markdown(html_block("""
+        <div style="margin:0.25rem 0 1.25rem 0;">
+            <div class="rama-pill">🏊 Panel deportivo</div>
+            <h2 style="margin:0.65rem 0 0.25rem 0;">Resumen de la Rama</h2>
+            <div class="rama-muted">Vista rápida del plantel, competencias y volumen de resultados registrados.</div>
+        </div>
+        """), unsafe_allow_html=True)
+
+        c1, c2, c3, c4 = st.columns(4)
+        with c1:
+            render_kpi_card("Nadadores activos", len(swimmers_df), "Plantel visible en la app", "#0ea5e9")
+        with c2:
+            render_kpi_card("Torneos", len(meets_df), "Competencias registradas", "#14b8a6")
+        with c3:
+            render_kpi_card("Resultados", total_results, "Tiempos individuales", "#f59e0b")
+        with c4:
+            render_kpi_card("Última carga", latest_meet_date, latest_meet_name, "#6366f1")
+
+        st.markdown('<div style="height:1.1rem;"></div>', unsafe_allow_html=True)
+
+        left_col, right_col = st.columns([1.35, 0.95])
+        with left_col:
+            st.markdown('<div class="rama-section-title">Competencias recientes</div>', unsafe_allow_html=True)
+            if not meets_df.empty:
+                result_counts = {}
+                if not all_results.empty and 'meet_name' in all_results.columns:
+                    result_counts = all_results.groupby('meet_name').size().to_dict()
+                for i in range(min(6, len(meets_df))):
+                    meet = meets_df.iloc[i]
+                    render_meet_card(
+                        meet.get('name', ''),
+                        meet.get('date', ''),
+                        meet.get('pool_size', 'N/A'),
+                        result_counts.get(meet.get('name')),
+                        accent="#0ea5e9" if i == 0 else "#cbd5e1"
+                    )
+            else:
+                st.info("No hay competencias registradas.")
+
+        with right_col:
+            st.markdown('<div class="rama-section-title">Distribución del plantel</div>', unsafe_allow_html=True)
+            cat_counts = swimmers_df['Categoría'].value_counts().head(6) if 'Categoría' in swimmers_df.columns else pd.Series(dtype=int)
+            if not cat_counts.empty:
+                for category, count in cat_counts.items():
+                    st.markdown(html_block(f"""
+                    <div class="rama-card" style="margin-bottom:0.75rem; padding:0.85rem 1rem;">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <span style="font-weight:800; color:#0f172a;">{esc(category)}</span>
+                            <span class="rama-pill">{int(count)} nadadores</span>
+                        </div>
+                    </div>
+                    """), unsafe_allow_html=True)
+            else:
+                st.info("No hay categorías disponibles.")
 
     with t_roster:
-        st.markdown("### 🏊 Lista de Nadadores")
-        
-        search_query = st.text_input("Buscar Nadador...", "")
-        
+        st.markdown(html_block("""
+        <div style="margin-bottom:1rem;">
+            <div class="rama-pill">🏊 Plantel</div>
+            <h2 style="margin:0.65rem 0 0.25rem 0;">Nadadores</h2>
+            <div class="rama-muted">Busca, filtra y entra al perfil individual de cada nadador.</div>
+        </div>
+        """), unsafe_allow_html=True)
+
+        f1, f2, f3 = st.columns([2, 1, 1])
+        with f1:
+            search_query = st.text_input("Buscar Nadador...", "", placeholder="Nombre o apellido")
+        with f2:
+            category_options = ["Todas"] + sorted([str(x) for x in swimmers_df['Categoría'].dropna().unique()])
+            selected_category = st.selectbox("Categoría", category_options)
+        with f3:
+            gender_options = ["Todos"] + sorted([str(x) for x in swimmers_df['gender'].dropna().unique()])
+            selected_gender = st.selectbox("Género", gender_options)
+
+        filtered = swimmers_df.copy()
         if search_query:
-            filtered = swimmers_df[swimmers_df['name'].str.lower().str.contains(search_query.lower())]
+            filtered = filtered[filtered['name'].str.lower().str.contains(search_query.lower(), na=False)]
+        if selected_category != "Todas":
+            filtered = filtered[filtered['Categoría'].astype(str) == selected_category]
+        if selected_gender != "Todos":
+            filtered = filtered[filtered['gender'].astype(str) == selected_gender]
+
+        st.caption(f"{len(filtered)} nadadores encontrados")
+
+        preview_df = filtered.head(12)
+        if not preview_df.empty:
+            card_cols = st.columns(3)
+            for idx, (_, row) in enumerate(preview_df.iterrows()):
+                with card_cols[idx % 3]:
+                    render_swimmer_card(row)
+                    if st.button("Ver perfil", key=f"swimmer_card_{row['id']}"):
+                        go_to_swimmer(row['id'])
+                        st.rerun()
         else:
-            filtered = swimmers_df
+            st.info("No hay nadadores que coincidan con los filtros.")
+
+        st.markdown('<div class="rama-section-title">Tabla completa</div>', unsafe_allow_html=True)
 
         display_df = filtered[['name', 'Categoría', 'gender']].copy()
         display_df.columns = ['Nombre', 'Categoría', 'Género']
@@ -1770,26 +2004,27 @@ def render_profile_view(swimmer_id, swimmers_df):
     avatar_url = "https://www.swimcloud.com/img/avatar-default.png" # or local asset
     
     st.markdown(f"""
-    <div style="background-color: #1e293b; padding: 2rem; border-radius: 10px; color: white; margin-bottom: 2rem; display: flex; align-items: center; gap: 2rem;">
+    <div style="background: linear-gradient(135deg, #0f172a 0%, #075985 58%, #0f766e 100%); padding: 2rem; border-radius: 28px; color: white; margin-bottom: 2rem; display: flex; align-items: center; gap: 2rem; box-shadow: 0 24px 60px rgba(15, 23, 42, 0.22); border:1px solid rgba(255,255,255,0.16);">
         <div style="flex-shrink: 0;">
-            <div style="width: 100px; height: 100px; background-color: #334155; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2rem; border: 3px solid #64748b;">
+            <div style="width: 108px; height: 108px; background: rgba(255,255,255,0.14); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2.4rem; border: 3px solid rgba(255,255,255,0.28); box-shadow: inset 0 0 30px rgba(255,255,255,0.08);">
                 🏊
             </div>
         </div>
         <div style="flex-grow: 1;">
-            <h1 style="margin:0; color: white; font-size: 2.5rem;">{name}</h1>
-            <p style="opacity: 0.8; margin-top: 5px; font-size: 1.1rem;">Rama de Natación Peñalolén • ID: {swimmer_id}</p>
+            <div style="display:inline-flex; padding:0.35rem 0.7rem; border-radius:999px; background:rgba(255,255,255,0.14); border:1px solid rgba(255,255,255,0.18); color:white; font-weight:800; font-size:0.78rem; letter-spacing:0.06em; text-transform:uppercase;">Perfil de nadador</div>
+            <h1 style="margin:0.65rem 0 0 0; color: white !important; font-size: clamp(2rem, 4vw, 3rem); font-weight:900; letter-spacing:-0.04em;">{name}</h1>
+            <p style="opacity: 0.86; margin-top: 5px; font-size: 1.05rem; color:#e0f2fe;">Rama de Natación Peñalolén • ID: {swimmer_id}</p>
             <div style="display: flex; gap: 15px; margin-top: 20px; flex-wrap: wrap;">
-                <div style="background: rgba(255,255,255,0.1); padding: 5px 15px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.2);">
-                    <small style="text-transform: uppercase; font-size: 0.7rem; opacity: 0.7;">Categoría</small><br>
+                <div style="background: rgba(255,255,255,0.13); padding: 8px 16px; border-radius: 18px; border: 1px solid rgba(255,255,255,0.22);">
+                    <small style="text-transform: uppercase; font-size: 0.7rem; opacity: 0.78; color:#e0f2fe;">Categoría</small><br>
                     <strong>{calculate_category(swimmer.get('birth_date'))}</strong>
                 </div>
-                <div style="background: rgba(255,255,255,0.1); padding: 5px 15px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.2);">
-                    <small style="text-transform: uppercase; font-size: 0.7rem; opacity: 0.7;">Género</small><br>
+                <div style="background: rgba(255,255,255,0.13); padding: 8px 16px; border-radius: 18px; border: 1px solid rgba(255,255,255,0.22);">
+                    <small style="text-transform: uppercase; font-size: 0.7rem; opacity: 0.78; color:#e0f2fe;">Género</small><br>
                     <strong>{swimmer.get('gender', '?')}</strong>
                 </div>
-                 <div style="background: rgba(255,255,255,0.1); padding: 5px 15px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.2);">
-                    <small style="text-transform: uppercase; font-size: 0.7rem; opacity: 0.7;">Nacimiento</small><br>
+                 <div style="background: rgba(255,255,255,0.13); padding: 8px 16px; border-radius: 18px; border: 1px solid rgba(255,255,255,0.22);">
+                    <small style="text-transform: uppercase; font-size: 0.7rem; opacity: 0.78; color:#e0f2fe;">Nacimiento</small><br>
                     <strong>{swimmer.get('birth_date', 'N/A')}</strong>
                 </div>
             </div>
