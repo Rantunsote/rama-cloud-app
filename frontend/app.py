@@ -397,6 +397,120 @@ st.markdown("""
         display: none;
     }
 
+    .st-key-rama_nav_label button[data-testid*="segmented_control"] {
+        white-space: nowrap !important;
+    }
+
+    @media (max-width: 640px) {
+        .block-container {
+            padding-left: 0.75rem !important;
+            padding-right: 0.75rem !important;
+            padding-bottom: 1.75rem !important;
+        }
+
+        .rama-main-nav-spacer {
+            height: 3.35rem;
+        }
+
+        .st-key-rama_nav_label {
+            padding: 0.42rem 0.55rem 0.4rem 0.55rem !important;
+            box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+        }
+
+        .st-key-rama_nav_label [data-testid="stButtonGroup"] {
+            width: 100% !important;
+        }
+
+        .st-key-rama_nav_label [data-testid="stButtonGroup"] > div {
+            gap: 0.25rem !important;
+            padding-bottom: 0.1rem;
+        }
+
+        .st-key-rama_nav_label button[data-testid*="segmented_control"] {
+            min-width: max-content !important;
+            min-height: 2.15rem !important;
+            padding: 0.35rem 0.58rem !important;
+            border-radius: 14px !important;
+            font-size: 0.82rem !important;
+        }
+
+        .rama-card {
+            border-radius: 18px;
+            padding: 1rem;
+        }
+
+        .rama-section-title {
+            font-size: 1.05rem;
+        }
+
+        .rama-muted {
+            font-size: 0.86rem;
+        }
+
+        div[data-testid="stMetric"] {
+            border-radius: 16px;
+            padding: 0.85rem 0.95rem;
+        }
+
+        h2 {
+            font-size: 1.7rem !important;
+            line-height: 1.15 !important;
+        }
+
+        .hero-container {
+            min-height: 235px !important;
+            border-radius: 20px !important;
+            padding: 1rem !important;
+            margin-top: 0.15rem !important;
+            background-position: center !important;
+        }
+
+        .hero-title {
+            font-size: clamp(1.85rem, 9.5vw, 2.45rem) !important;
+            line-height: 1.05 !important;
+        }
+
+        .hero-subtitle {
+            font-size: 0.95rem !important;
+            gap: 0.45rem !important;
+        }
+
+        .coach-tag {
+            padding: 6px 10px !important;
+            font-size: 0.82rem !important;
+        }
+    }
+
+    @media (max-width: 420px) {
+        .rama-main-nav-spacer {
+            height: 3.1rem;
+        }
+
+        .st-key-rama_nav_label button[data-testid*="segmented_control"] {
+            min-height: 2rem !important;
+            padding: 0.3rem 0.48rem !important;
+            font-size: 0.78rem !important;
+        }
+
+        .hero-container {
+            min-height: 205px !important;
+            border-radius: 18px !important;
+        }
+
+        .hero-title {
+            font-size: clamp(1.65rem, 10vw, 2.05rem) !important;
+        }
+
+        .hero-subtitle {
+            font-size: 0.86rem !important;
+        }
+
+        .coach-tag {
+            padding: 5px 9px !important;
+            font-size: 0.76rem !important;
+        }
+    }
+
     div[data-testid="stTabs"] button {
         border-radius: 999px !important;
         padding: 0.5rem 0.9rem !important;
