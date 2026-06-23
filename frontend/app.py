@@ -358,6 +358,96 @@ st.markdown("""
         white-space: nowrap !important;
     }
 
+    .swimmer-profile-card {
+        background: linear-gradient(135deg, #0f172a 0%, #075985 58%, #0f766e 100%);
+        padding: 1.35rem 1.5rem;
+        border-radius: 24px;
+        color: white;
+        margin-bottom: 1.35rem;
+        display: grid;
+        grid-template-columns: 88px minmax(0, 1fr);
+        align-items: center;
+        gap: 1.25rem;
+        box-shadow: 0 18px 42px rgba(15, 23, 42, 0.18);
+        border: 1px solid rgba(255, 255, 255, 0.16);
+    }
+
+    .swimmer-profile-avatar {
+        width: 88px;
+        height: 88px;
+        background: rgba(255,255,255,0.14);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2rem;
+        border: 2px solid rgba(255,255,255,0.28);
+        box-shadow: inset 0 0 24px rgba(255,255,255,0.08);
+    }
+
+    .swimmer-profile-content {
+        min-width: 0;
+    }
+
+    .swimmer-profile-badge {
+        display: inline-flex;
+        padding: 0.28rem 0.62rem;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.14);
+        border: 1px solid rgba(255,255,255,0.18);
+        color: white;
+        font-weight: 800;
+        font-size: 0.68rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+    }
+
+    .swimmer-profile-title {
+        margin: 0.45rem 0 0 0;
+        color: white !important;
+        font-size: clamp(1.9rem, 3.5vw, 2.65rem);
+        font-weight: 900;
+        letter-spacing: -0.04em;
+        line-height: 1.05;
+    }
+
+    .swimmer-profile-meta {
+        opacity: 0.86;
+        margin: 0.3rem 0 0 0;
+        font-size: 0.95rem;
+        color: #e0f2fe !important;
+    }
+
+    .swimmer-profile-stats {
+        display: flex;
+        gap: 0.65rem;
+        margin-top: 0.85rem;
+        flex-wrap: wrap;
+    }
+
+    .swimmer-profile-stat {
+        background: rgba(255,255,255,0.13);
+        padding: 0.5rem 0.85rem;
+        border-radius: 15px;
+        border: 1px solid rgba(255,255,255,0.22);
+        min-width: 98px;
+    }
+
+    .swimmer-profile-stat small {
+        text-transform: uppercase;
+        font-size: 0.62rem;
+        letter-spacing: 0.04em;
+        opacity: 0.78;
+        color: #e0f2fe;
+    }
+
+    .swimmer-profile-stat strong {
+        display: block;
+        margin-top: 0.15rem;
+        font-size: 1rem;
+        line-height: 1.1;
+    }
+
     @media (max-width: 640px) {
         .block-container {
             padding-left: 0.75rem !important;
@@ -436,6 +526,60 @@ st.markdown("""
             padding: 6px 10px !important;
             font-size: 0.82rem !important;
         }
+
+        .swimmer-profile-card {
+            padding: 0.85rem;
+            border-radius: 18px;
+            grid-template-columns: 54px minmax(0, 1fr);
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+            box-shadow: 0 12px 28px rgba(15, 23, 42, 0.16);
+        }
+
+        .swimmer-profile-avatar {
+            width: 54px;
+            height: 54px;
+            font-size: 1.35rem;
+            border-width: 2px;
+        }
+
+        .swimmer-profile-badge {
+            padding: 0.2rem 0.48rem;
+            font-size: 0.55rem;
+            letter-spacing: 0.08em;
+        }
+
+        .swimmer-profile-title {
+            margin-top: 0.32rem;
+            font-size: clamp(1.45rem, 7.5vw, 2rem) !important;
+            line-height: 1.02;
+        }
+
+        .swimmer-profile-meta {
+            margin-top: 0.2rem;
+            font-size: 0.78rem;
+            line-height: 1.25;
+        }
+
+        .swimmer-profile-stats {
+            gap: 0.45rem;
+            margin-top: 0.6rem;
+        }
+
+        .swimmer-profile-stat {
+            flex: 1 1 calc(50% - 0.45rem);
+            min-width: 0;
+            padding: 0.42rem 0.58rem;
+            border-radius: 13px;
+        }
+
+        .swimmer-profile-stat small {
+            font-size: 0.54rem;
+        }
+
+        .swimmer-profile-stat strong {
+            font-size: 0.88rem;
+        }
     }
 
     @media (max-width: 420px) {
@@ -465,6 +609,35 @@ st.markdown("""
         .coach-tag {
             padding: 5px 9px !important;
             font-size: 0.76rem !important;
+        }
+
+        .swimmer-profile-card {
+            grid-template-columns: 46px minmax(0, 1fr);
+            padding: 0.72rem;
+            border-radius: 16px;
+            gap: 0.62rem;
+        }
+
+        .swimmer-profile-avatar {
+            width: 46px;
+            height: 46px;
+            font-size: 1.15rem;
+        }
+
+        .swimmer-profile-title {
+            font-size: clamp(1.28rem, 7.6vw, 1.72rem) !important;
+        }
+
+        .swimmer-profile-meta {
+            font-size: 0.72rem;
+        }
+
+        .swimmer-profile-stat {
+            padding: 0.38rem 0.5rem;
+        }
+
+        .swimmer-profile-stat strong {
+            font-size: 0.82rem;
         }
     }
 
@@ -2179,39 +2352,36 @@ def render_profile_view(swimmer_id, swimmers_df):
         st.rerun()
         
     # --- HEADER SECTION ---
-    # --- HEADER SECTION ---
-    # Mimic Swimcloud Header
-    # Placeholder Avatar
-    avatar_url = "https://www.swimcloud.com/img/avatar-default.png" # or local asset
-    
-    st.markdown(f"""
-    <div style="background: linear-gradient(135deg, #0f172a 0%, #075985 58%, #0f766e 100%); padding: 2rem; border-radius: 28px; color: white; margin-bottom: 2rem; display: flex; align-items: center; gap: 2rem; box-shadow: 0 24px 60px rgba(15, 23, 42, 0.22); border:1px solid rgba(255,255,255,0.16);">
-        <div style="flex-shrink: 0;">
-            <div style="width: 108px; height: 108px; background: rgba(255,255,255,0.14); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2.4rem; border: 3px solid rgba(255,255,255,0.28); box-shadow: inset 0 0 30px rgba(255,255,255,0.08);">
-                🏊
-            </div>
-        </div>
-        <div style="flex-grow: 1;">
-            <div style="display:inline-flex; padding:0.35rem 0.7rem; border-radius:999px; background:rgba(255,255,255,0.14); border:1px solid rgba(255,255,255,0.18); color:white; font-weight:800; font-size:0.78rem; letter-spacing:0.06em; text-transform:uppercase;">Perfil de nadador</div>
-            <h1 style="margin:0.65rem 0 0 0; color: white !important; font-size: clamp(2rem, 4vw, 3rem); font-weight:900; letter-spacing:-0.04em;">{name}</h1>
-            <p style="opacity: 0.86; margin-top: 5px; font-size: 1.05rem; color:#e0f2fe;">Rama de Natación Peñalolén • ID: {swimmer_id}</p>
-            <div style="display: flex; gap: 15px; margin-top: 20px; flex-wrap: wrap;">
-                <div style="background: rgba(255,255,255,0.13); padding: 8px 16px; border-radius: 18px; border: 1px solid rgba(255,255,255,0.22);">
-                    <small style="text-transform: uppercase; font-size: 0.7rem; opacity: 0.78; color:#e0f2fe;">Categoría</small><br>
-                    <strong>{calculate_category(swimmer.get('birth_date'))}</strong>
+    birth_raw = swimmer.get('birth_date', 'N/A')
+    birth_display = "N/A"
+    if pd.notna(birth_raw) and str(birth_raw).strip() not in ("", "None", "NaT"):
+        birth_dt = pd.to_datetime(birth_raw, errors='coerce')
+        birth_display = birth_dt.strftime("%Y-%m-%d") if pd.notna(birth_dt) else str(birth_raw).split()[0]
+
+    st.markdown(html_block(f"""
+    <div class="swimmer-profile-card">
+        <div class="swimmer-profile-avatar">🏊</div>
+        <div class="swimmer-profile-content">
+            <div class="swimmer-profile-badge">Perfil de nadador</div>
+            <h1 class="swimmer-profile-title">{esc(name)}</h1>
+            <p class="swimmer-profile-meta">Rama de Natación Peñalolén • ID: {esc(swimmer_id)}</p>
+            <div class="swimmer-profile-stats">
+                <div class="swimmer-profile-stat">
+                    <small>Categoría</small>
+                    <strong>{esc(calculate_category(swimmer.get('birth_date')))}</strong>
                 </div>
-                <div style="background: rgba(255,255,255,0.13); padding: 8px 16px; border-radius: 18px; border: 1px solid rgba(255,255,255,0.22);">
-                    <small style="text-transform: uppercase; font-size: 0.7rem; opacity: 0.78; color:#e0f2fe;">Género</small><br>
-                    <strong>{swimmer.get('gender', '?')}</strong>
+                <div class="swimmer-profile-stat">
+                    <small>Género</small>
+                    <strong>{esc(swimmer.get('gender', '?'))}</strong>
                 </div>
-                 <div style="background: rgba(255,255,255,0.13); padding: 8px 16px; border-radius: 18px; border: 1px solid rgba(255,255,255,0.22);">
-                    <small style="text-transform: uppercase; font-size: 0.7rem; opacity: 0.78; color:#e0f2fe;">Nacimiento</small><br>
-                    <strong>{swimmer.get('birth_date', 'N/A')}</strong>
+                <div class="swimmer-profile-stat">
+                    <small>Nacimiento</small>
+                    <strong>{esc(birth_display)}</strong>
                 </div>
             </div>
         </div>
     </div>
-    """, unsafe_allow_html=True)
+    """), unsafe_allow_html=True)
     
     # --- DATA LOADING ---
     results_df = load_results(swimmer_id)
