@@ -24,8 +24,7 @@ TEAM_ID = "10034725"
 BASE_URL = "https://www.swimcloud.com"
 TEAM_ROSTER_URL = f"{BASE_URL}/team/{TEAM_ID}/roster/"
 EXTRA_SWIMMERS = [
-    {"id": "3235418", "name": "Vicente Reyes", "url": "https://www.swimcloud.com/swimmer/3235418/"},
-    {"id": "2739286", "name": "Amaro Gonzalez", "url": "https://www.swimcloud.com/swimmer/2739286/"}
+    {"id": "3235418", "name": "Vicente Reyes", "url": "https://www.swimcloud.com/swimmer/3235418/"}
 ]
 
 class SwimcloudCrawler:
