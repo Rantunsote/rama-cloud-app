@@ -1991,19 +1991,11 @@ def render_team_view(swimmers_df):
         display_df = filtered[['name', 'Categoría', 'gender']].copy()
         display_df.columns = ['Nombre', 'Categoría', 'Género']
         
-        event = st.dataframe(
+        st.dataframe(
             display_df,
             use_container_width=True,
-            hide_index=True,
-            selection_mode="single-row",
-            on_select="rerun"
+            hide_index=True
         )
-        
-        if len(event.selection.rows) > 0:
-            row_idx = event.selection.rows[0]
-            selected_id = filtered.iloc[row_idx]['id']
-            go_to_swimmer(selected_id)
-            st.rerun()
 
     if selected_section == "torneos":
         st.subheader("Historial de Torneos")
