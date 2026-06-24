@@ -1121,39 +1121,6 @@ def update_swimmer_dob(updates):
     # Backward compatibility wrapper if needed, but update_swimmer_info is primary
     return update_swimmer_info(updates, {})
 
-def update_pool_size(updates):
-    conn = get_connection()
-    cursor = conn.cursor()
-    count = 0
-    try:
-        for result_id, new_size in updates.items():
-            cursor.execute("UPDATE results SET pool_size = ? WHERE id = ?", (new_size, result_id))
-            count += 1
-        conn.commit()
-        clear_data_cache()
-    except Exception as e:
-        st.error(f"Error updating: {e}")
-    finally:
-        conn.close()
-    return count
-
-def update_meet_pool_size(meet_id, new_size):
-    conn = get_connection()
-    try:
-        cursor = conn.cursor()
-        # 1. Update Meet
-        cursor.execute("UPDATE meets SET pool_size = ? WHERE id = ?", (new_size, meet_id))
-        
-        # 2. Update Results for this meet
-        cursor.execute("UPDATE results SET pool_size = ? WHERE meet_id = ?", (new_size, meet_id))
-        
-        conn.commit()
-        clear_data_cache()
-    except Exception as e:
-        st.error(f"Error updating pool size: {e}")
-    finally:
-        conn.close()
-
 def update_meet_info(meet_id, new_name, new_date):
     conn = get_connection()
     try:
@@ -1998,62 +1965,23 @@ def render_team_view(swimmers_df):
 
     if selected_section == "torneos":
         st.subheader("Historial de Torneos")
-        st.info("💡 Puedes editar el tamaño de la piscina (25m/50m) directamente en la tabla.")
-        
-        # Prepare Data
-        # We need ID for updates
         meets_df = load_meets()
-        editor_df = meets_df.copy()
-        
-        # Config Columns
-        column_cfg = {
-            "id": None, 
-            "url": None,
-            "date_obj": None,
-            "_sort_date": None,
+
+        display_df = meets_df[["name", "date", "location", "pool_size", "address"]].copy()
+        display_df = display_df.rename(columns={
             "name": "Nombre",
             "date": "Fecha",
             "location": "Ciudad",
+            "pool_size": "Piscina",
             "address": "Lugar Club",
-            "pool_size": st.column_config.SelectboxColumn(
-                "Piscina",
-                options=["25m", "50m"],
-                required=True,
-                help="Selecciona el tamaño de la piscina"
-            )
-        }
-        
-        edited_df = st.data_editor(
-            editor_df,
-            column_config=column_cfg,
-            disabled=["location"], # Allowed name, date, pool_size, address
+        })
+
+        st.dataframe(
+            display_df,
             use_container_width=True,
             hide_index=True,
-            key="meets_editor"
+            key="meets_table"
         )
-        
-        # Detect Changes
-        if not edited_df.equals(editor_df):
-            for i in editor_df.index:
-                old_row = editor_df.loc[i]
-                new_row = edited_df.loc[i]
-                m_id = old_row['id'] # ID is hidden but present
-                
-                changed = []
-                if old_row['pool_size'] != new_row['pool_size']:
-                    update_meet_pool_size(m_id, new_row['pool_size'])
-                    changed.append("Piscina")
-                if old_row['name'] != new_row['name'] or old_row['date'] != new_row['date']:
-                    update_meet_info(m_id, new_row['name'], new_row['date'])
-                    changed.append("Info")
-                if old_row['address'] != new_row['address']:
-                    update_meet_address(m_id, new_row['address'])
-                    changed.append("Posición")
-                    
-                if changed:
-                    st.toast(f"Torneo actualizado!", icon="✅")
-                    time.sleep(0.2) # Visual feedback
-                    st.rerun()
 
     if selected_section == "analisis":
         render_analysis_tab(swimmers_df)

@@ -27,6 +27,7 @@ DB_PATH = os.environ.get("RAMA_DB_PATH", DB_PATH)
 
 TEAMS_REGEX = ["penalolen", "peñalolen", "peñalolén", "rama de natacion penalolen", "rama natacion penalolen", "crnp", "penilolen", "peñilolen", "penálolen"]
 TEAM_ID = "10034725"  # Rama Peñalolén in Swimcloud/app roster
+FECHIDA_POOL_SIZE = "50m"
 
 def get_db_connection():
     return sqlite3.connect(DB_PATH)
@@ -102,10 +103,8 @@ def map_event_name(raw_event_line):
         
     return f"{distance} {style}"
 
-def map_pool_size(raw_event_line):
-    if 'SC' in raw_event_line or '25m' in raw_event_line.lower():
-        return '25m'
-    return '50m' # CL usually means 50m (Course Long)
+def map_pool_size(_raw_event_line):
+    return FECHIDA_POOL_SIZE
 
 def extract_result_time(tokens):
     """Return the first token that looks like a swim time/status."""
@@ -263,6 +262,7 @@ def format_fechida_name(raw):
 
 def sync_results_to_db(results, meet_name, meet_date, meet_location=None, meet_pool=None, club_place=None):
     if not results and not club_place: return 0
+    meet_pool = FECHIDA_POOL_SIZE
     
     conn = get_db_connection()
     c = conn.cursor()
@@ -407,7 +407,7 @@ def scrape_fechida(log_callback=print):
             
             meet_date = datetime.now().strftime("%Y-%m-%d")
             meet_location = None
-            meet_pool = None
+            meet_pool = FECHIDA_POOL_SIZE
             
             # Extraer Metadatos (Fecha, Lugar, Piscina)
             try:
@@ -426,7 +426,7 @@ def scrape_fechida(log_callback=print):
                         if m:
                             meet_date = f"{m.group(3)}-{m.group(2)}-{m.group(1)}"
                     elif "Piscina" in text:
-                        meet_pool = f"{val}m" if val.isdigit() else val
+                        meet_pool = FECHIDA_POOL_SIZE
             except Exception as e:
                 log_callback(f"Error extrayendo metadatos de HTML: {e}")
                 
