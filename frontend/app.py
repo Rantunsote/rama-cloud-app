@@ -27,13 +27,9 @@ def map_points(place):
     return 0
 
 # Configuration
-# Configuration
 import os
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-# Go up two levels to reach project root (swim_scraper/frontend -> swim_scraper -> root), then data/
-# Actually structure seems to be: ~/Documents/RAMA/swim_scraper/frontend/app.py
-# And DB is at ~/Documents/RAMA/swim_scraper/data/natacion.db (based on update_dobs.py location)
-# So we need to go up from frontend to swim_scraper, then into data.
+# Go up from frontend to the repo root, then into data/.
 ROOT_DIR = os.path.dirname(BASE_DIR)
 DB_PATH = os.path.join(ROOT_DIR, "data", "natacion.db")
 

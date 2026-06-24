@@ -9,10 +9,15 @@ import csv
 from normalize_events import normalize_event_name_v2
 
 # --- CONFIG ---
-LIVE_DB_PATH = '/Users/jrb/Library/Containers/7F2BC93B-8FAC-48B0-BF83-D128B1ADF11C/Data/Documents/MeetMobile.db'
-MM_DB_PATH = '/Users/jrb/Documents/RAMA/swim_scraper/meet_mobile_dump.db'
-LOCAL_DB_PATH = '/Users/jrb/Documents/RAMA/swim_scraper/data/natacion.db'
-WHITELIST_PATH = '/Users/jrb/Documents/RAMA/swim_scraper/data/swimmers_whitelist.csv'
+APP_ROOT = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.environ.get("RAMA_DATA_DIR", os.path.join(APP_ROOT, "data"))
+LIVE_DB_PATH = os.environ.get(
+    "RAMA_MEETMOBILE_LIVE_DB_PATH",
+    '/Users/jrb/Library/Containers/7F2BC93B-8FAC-48B0-BF83-D128B1ADF11C/Data/Documents/MeetMobile.db'
+)
+MM_DB_PATH = os.environ.get("RAMA_MEETMOBILE_DUMP_PATH", os.path.join(APP_ROOT, "meet_mobile_dump.db"))
+LOCAL_DB_PATH = os.environ.get("RAMA_DB_PATH", os.path.join(DATA_DIR, "natacion.db"))
+WHITELIST_PATH = os.environ.get("RAMA_SWIMMERS_WHITELIST_PATH", os.path.join(DATA_DIR, "swimmers_whitelist.csv"))
 # JAN_1_2020_TIMESTAMP = 1577836800 
 # JAN_1_2010_TIMESTAMP = 1262304000
 JAN_1_2000_TIMESTAMP = 946684800 # Capture ALL history
