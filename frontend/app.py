@@ -252,6 +252,7 @@ def resolve_db_event_names(display_name):
     normalized = normalize_scraped_event_name(display_name)
     return [normalized]
 
+@st.cache_data(show_spinner=False)
 def get_img_as_base64(file):
     with open(file, "rb") as f:
         data = f.read()
@@ -791,6 +792,10 @@ def get_connection():
         return None
     return sqlite3.connect(DB_PATH)
 
+def clear_data_cache():
+    st.cache_data.clear()
+
+@st.cache_data(show_spinner=False, ttl=300)
 def load_national_records():
     conn = get_connection()
     if not conn: return pd.DataFrame()
@@ -798,8 +803,7 @@ def load_national_records():
     conn.close()
     return df
 
-    return df
-
+@st.cache_data(show_spinner=False, ttl=300)
 def load_minimas():
     conn = get_connection()
     if not conn: return pd.DataFrame()
@@ -878,11 +882,12 @@ def update_swimmer_info(updates_dob, updates_gender):
             
         # Update Gender
         for swift_id, new_gender in updates_gender.items():
-             safe_id = int(str(swift_id).replace(',', ''))
-             cursor.execute("UPDATE swimmers SET gender = ? WHERE id = ?", (new_gender, safe_id))
-             if cursor.rowcount > 0: count += 1
+            safe_id = int(str(swift_id).replace(',', ''))
+            cursor.execute("UPDATE swimmers SET gender = ? WHERE id = ?", (new_gender, safe_id))
+            if cursor.rowcount > 0: count += 1
             
         conn.commit()
+        clear_data_cache()
     except Exception as e:
         st.error(f"Error updating info: {e}")
         sys.stdout.write(f"❌ ERROR: {e}\n")
@@ -891,6 +896,7 @@ def update_swimmer_info(updates_dob, updates_gender):
         conn.close()
     return count
 
+@st.cache_data(show_spinner=False, ttl=300)
 def load_swimmers():
     # DEBUG
     print(f"DEBUG: Connecting to {DB_PATH}")
@@ -925,6 +931,7 @@ def load_swimmers():
 # --- CONSTANTS ---
 # TEAM_ID moved to top of file
 
+@st.cache_data(show_spinner=False, ttl=300)
 def load_results(swimmer_id):
     conn = get_connection()
     if not conn: return pd.DataFrame()
@@ -939,6 +946,7 @@ def load_results(swimmer_id):
     conn.close()
     return df
 
+@st.cache_data(show_spinner=False, ttl=300)
 def load_all_best_times():
     conn = get_connection()
     if not conn: return pd.DataFrame()
@@ -974,6 +982,7 @@ def load_all_best_times():
     
     return best_times
 
+@st.cache_data(show_spinner=False, ttl=300)
 def load_all_results():
     conn = get_connection()
     if not conn: return pd.DataFrame()
@@ -1125,6 +1134,7 @@ def update_pool_size(updates):
             cursor.execute("UPDATE results SET pool_size = ? WHERE id = ?", (new_size, result_id))
             count += 1
         conn.commit()
+        clear_data_cache()
     except Exception as e:
         st.error(f"Error updating: {e}")
     finally:
@@ -1142,6 +1152,7 @@ def update_meet_pool_size(meet_id, new_size):
         cursor.execute("UPDATE results SET pool_size = ? WHERE meet_id = ?", (new_size, meet_id))
         
         conn.commit()
+        clear_data_cache()
     except Exception as e:
         st.error(f"Error updating pool size: {e}")
     finally:
@@ -1153,6 +1164,7 @@ def update_meet_info(meet_id, new_name, new_date):
         cursor = conn.cursor()
         cursor.execute("UPDATE meets SET name = ?, date = ? WHERE id = ?", (new_name, new_date, meet_id))
         conn.commit()
+        clear_data_cache()
     except Exception as e:
         st.error(f"Error updating meet info: {e}")
     finally:
@@ -1164,6 +1176,7 @@ def update_meet_address(meet_id, new_address):
         cursor = conn.cursor()
         cursor.execute("UPDATE meets SET address = ? WHERE id = ?", (new_address, meet_id))
         conn.commit()
+        clear_data_cache()
     except Exception as e:
         st.error(f"Error updating meet address: {e}")
     finally:
@@ -1249,6 +1262,7 @@ def process_bulk_dob_update(text_data):
                 if cursor.rowcount > 0: updates += 1
                 
         conn.commit()
+        clear_data_cache()
     except Exception as e:
         errors.append(str(e))
     finally:
@@ -1271,6 +1285,7 @@ def go_to_home():
 
 # --- VIEWS ---
 
+@st.cache_data(show_spinner=False, ttl=300)
 def load_meets():
     conn = get_connection()
     if not conn: return pd.DataFrame()
@@ -1706,6 +1721,7 @@ def render_team_view(swimmers_df):
         if not dob: return "Desconocido"
         return calculate_category(dob)
     
+    swimmers_df = swimmers_df.copy()
     swimmers_df['Categoría'] = swimmers_df.apply(get_display_data, axis=1)
 
     # --- TEAM HEADER ---
@@ -1995,6 +2011,7 @@ def render_team_view(swimmers_df):
         
         # Prepare Data
         # We need ID for updates
+        meets_df = load_meets()
         editor_df = meets_df.copy()
         
         # Config Columns
@@ -2044,7 +2061,7 @@ def render_team_view(swimmers_df):
                     
                 if changed:
                     st.toast(f"Torneo actualizado!", icon="✅")
-                    time.sleep(1) # Visual feedback
+                    time.sleep(0.2) # Visual feedback
                     st.rerun()
 
     if selected_section == "analisis":
@@ -2270,6 +2287,7 @@ def render_team_view(swimmers_df):
                             importlib.reload(auto_deduplicate)
                             resultado_d = auto_deduplicate.run_deduplicator()
                             logger(f"✅ Deduplicación lista: {resultado_d.get('meets_merged')} torneos fusionados y {resultado_d.get('results_deleted')} tiempos idénticos purgados.")
+                            clear_data_cache()
                             
                             nuevos = resultado_f.get("total_new", 0)
                             added_meets = resultado_f.get("added_meets", [])
@@ -2347,6 +2365,7 @@ def render_team_view(swimmers_df):
                         try:
                             import auto_deduplicate
                             result = auto_deduplicate.run_deduplicator()
+                            clear_data_cache()
                             
                             st.success(f"¡Limpieza finalizada!")
                             st.write(f"- Torneos redundantes fusionados: **{result.get('meets_merged', 0)}**")
@@ -2429,10 +2448,15 @@ def render_profile_view(swimmer_id, swimmers_df):
     results_df['event_display'] = results_df['event_name'].apply(get_event_display_name)
     graph_df['event_display'] = graph_df['event_name'].apply(get_event_display_name)
     
-    # --- TABS ---
-    t_times, t_progression, t_stats = st.tabs(["⏱️ Tiempos", "📈 Progresión", "📊 Estadísticas"])
+    profile_tab = st.radio(
+        "Vista del nadador",
+        ["⏱️ Tiempos", "📈 Progresión", "📊 Estadísticas"],
+        horizontal=True,
+        label_visibility="collapsed",
+        key=f"profile_active_tab_{swimmer_id}",
+    )
     
-    with t_times:
+    if profile_tab == "⏱️ Tiempos":
         st.markdown("### Historial Completo")
         
         # Ensure numeric for formatting
@@ -2459,7 +2483,7 @@ def render_profile_view(swimmer_id, swimmers_df):
             hide_index=True
         )
         
-    with t_progression:
+    if profile_tab == "📈 Progresión":
          # Simplified Chart Logic for Redesign
          # Filter to only events with valid times/dates
          graph_data = graph_df.dropna(subset=['seconds', 'date_obj'])
@@ -2629,7 +2653,7 @@ def render_profile_view(swimmer_id, swimmers_df):
              else:
                  st.info("Datos insuficientes para graficar.")
              
-    with t_stats:
+    if profile_tab == "📊 Estadísticas":
         # PBs Table
         st.subheader("Mejores Marcas Personales (PB)")
         
