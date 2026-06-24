@@ -12,6 +12,7 @@ from datetime import datetime
 import time
 import unicodedata
 import hashlib
+import csv
 
 socket.setdefaulttimeout(30)
 
@@ -28,6 +29,8 @@ DB_PATH = os.environ.get("RAMA_DB_PATH", DB_PATH)
 TEAMS_REGEX = ["penalolen", "peñalolen", "peñalolén", "rama de natacion penalolen", "rama natacion penalolen", "crnp", "penilolen", "peñilolen", "penálolen"]
 TEAM_ID = "10034725"  # Rama Peñalolén in Swimcloud/app roster
 FECHIDA_POOL_SIZE = "50m"
+DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+WHITELIST_PATH = os.environ.get("RAMA_SWIMMERS_WHITELIST_PATH", os.path.join(DATA_DIR, "swimmers_whitelist.csv"))
 
 def get_db_connection():
     return sqlite3.connect(DB_PATH)
@@ -118,11 +121,9 @@ def extract_result_time(tokens):
         if upper_value in status_values:
             return upper_value
 
-        # Exhibition times sometimes start with X; keep the actual time.
-        if upper_value.startswith('X'):
-            value = value[1:]
-
         normalized = value.replace(',', '.')
+        # Fechida sometimes prefixes a category marker to the time, e.g. J3:09.17.
+        normalized = re.sub(r'^[A-Za-z]+(?=(?:\d{1,2}:)?\d{1,2}\.\d{2}$)', '', normalized)
         if re.match(r'^(?:\d{1,2}:)?\d{1,2}\.\d{2}$', normalized):
             return normalized
 
@@ -211,6 +212,30 @@ def normalize_name_for_match(name):
     value = re.sub(r'[^a-z0-9 ]+', ' ', value)
     return re.sub(r'\s+', ' ', value).strip()
 
+def load_swimmer_whitelist():
+    if not os.path.exists(WHITELIST_PATH):
+        return []
+
+    whitelist = []
+    with open(WHITELIST_PATH, 'r', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            parts = [row.get('Nombre', ''), row.get('Apellido Paterno', ''), row.get('Apellido Materno', '')]
+            tokens = set(normalize_name_for_match(" ".join(part for part in parts if part)).split())
+            if tokens:
+                whitelist.append(tokens)
+    return whitelist
+
+def is_whitelisted_swimmer(name, whitelist):
+    if not whitelist:
+        return True
+
+    tokens = set(normalize_name_for_match(name).split())
+    if not tokens:
+        return False
+
+    return any(tokens.issubset(entry) or entry.issubset(tokens) for entry in whitelist)
+
 def swimmer_name_score(pdf_name, db_name):
     pdf_norm = normalize_name_for_match(pdf_name)
     db_norm = normalize_name_for_match(db_name)
@@ -253,12 +278,25 @@ def build_fechida_swimmer_id(name, birth_date, gender):
     return f"FCH_{digest}"
 
 def format_fechida_name(raw):
+    raw = re.sub(r'\s*\*\d+\s*', ' ', raw)
+    raw = re.sub(r'\s+', ' ', raw).strip()
     # "Perez, Juan" -> "Juan Perez"
     if ',' in raw:
         parts = raw.split(',')
         if len(parts) >= 2:
             return f"{parts[1].strip()} {parts[0].strip()}".title()
     return raw.title()
+
+def clean_meet_name(raw_name):
+    name = raw_name or ""
+    name = re.split(
+        r'\b(?:Lugar|Fecha|Piscina|Documentos|Zip De Inscripci[oó]n)\b\s*:',
+        name,
+        maxsplit=1,
+        flags=re.IGNORECASE,
+    )[0]
+    name = re.sub(r'\s+', ' ', name).strip()
+    return name.title() if name else "Campeonato Fechida"
 
 def sync_results_to_db(results, meet_name, meet_date, meet_location=None, meet_pool=None, club_place=None):
     if not results and not club_place: return 0
@@ -290,6 +328,7 @@ def sync_results_to_db(results, meet_name, meet_date, meet_location=None, meet_p
     # Load swimmers for matching (Now including birth_date)
     c.execute("SELECT id, name, birth_date FROM swimmers")
     swimmers = c.fetchall()
+    whitelist = load_swimmer_whitelist()
     
     inserts = 0
     for r in results:
@@ -331,6 +370,9 @@ def sync_results_to_db(results, meet_name, meet_date, meet_location=None, meet_p
             db_event = map_event_name(r['raw_event'])
             db_pool = map_pool_size(r['raw_event'])
         else:
+            if not is_whitelisted_swimmer(formatted_name, whitelist):
+                continue
+
             birth_date = derive_birth_date(result_age_val, meet_date)
             gender = infer_gender(r['raw_event'])
             best_match_id = build_fechida_swimmer_id(formatted_name, birth_date, gender)
@@ -401,7 +443,7 @@ def scrape_fechida(log_callback=print):
                 csoup.find('h3', class_='post__title')
             )
             if title_tag:
-                meet_name = title_tag.get_text(strip=True).title()
+                meet_name = clean_meet_name(title_tag.get_text(" ", strip=True))
                 if len(meet_name) > 100:
                     meet_name = f"Campeonato Fechida {c_id}"
             
@@ -413,7 +455,8 @@ def scrape_fechida(log_callback=print):
             try:
                 for tag in csoup.find_all('strong'):
                     text = tag.get_text(strip=True)
-                    val = tag.next_sibling.strip() if (tag.next_sibling and hasattr(tag.next_sibling, 'strip')) else None
+                    sibling = tag.next_sibling
+                    val = sibling.strip() if isinstance(sibling, str) else None
                     if not val:
                         parent_text = tag.parent.get_text(strip=True)
                         val = parent_text.replace(text, "").strip()
@@ -489,8 +532,10 @@ def scrape_fechida(log_callback=print):
                 else:
                     log_callback("  No se encontraron resultados de Peñalolén en este torneo.")
                     
-                # Mark scraped regardless if penalized or not
-                mark_as_scraped(c_id)
+                if pdf_urls:
+                    mark_as_scraped(c_id)
+                else:
+                    log_callback("  Solo hay puntajes/consolidado; se reintentará cuando publiquen resultados completos.")
             else:
                 # No complete results yet, don't mark as scraped so we can check later
                 log_callback("  Aún no publican PDFs de 'Resultados'.")
