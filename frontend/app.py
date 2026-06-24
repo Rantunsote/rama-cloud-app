@@ -1334,7 +1334,8 @@ def render_analysis_tab(swimmers_df):
     # 3. Category
     # Map friendly names to min-max ages
     cat_map = {}
-    cat_map["Todas las edades"] = (0, 99, "Todas")
+    cat_map["Todas las edades"] = (0, 99, None)
+    cat_map["Infantiles"] = (8, 12, None)
     # Individual ages 8 to 14
     for age_n in range(8, 15):
         # DB uses "11-11" for individual ages
@@ -1344,7 +1345,8 @@ def render_analysis_tab(swimmers_df):
     cat_map["15-17 años"] = (15, 17, "15-17")
     cat_map["18-99 años"] = (18, 99, "18-99")
     
-    cat_label = c3.selectbox("Categoría", list(cat_map.keys()), index=3) # Default 10 años
+    category_options = list(cat_map.keys())
+    cat_label = c3.selectbox("Categoría", category_options, index=category_options.index("10 años"))
     cat_min, cat_max, cat_code = cat_map[cat_label]
     
     # --- Filter Swimmers ---
@@ -1446,7 +1448,8 @@ def render_analysis_tab(swimmers_df):
     
     val_minima = None
     minima_text = ""
-    if not minimas_df.empty:
+    use_reference_lines = cat_code is not None and gender in ["M", "F"]
+    if use_reference_lines and not minimas_df.empty:
         # Filter (Try to find ANY matching minima, prefer 50m if usually standard, or lowest)
         m_row = minimas_df[
             (minimas_df['event_name'] == selected_event_db) &
@@ -1460,7 +1463,7 @@ def render_analysis_tab(swimmers_df):
 
     val_record = None
     record_text = ""
-    if not records_df.empty:
+    if use_reference_lines and not records_df.empty:
          r_row = records_df[
             (records_df['event_name'] == selected_event_db) &
             (records_df['gender'] == gender) &
